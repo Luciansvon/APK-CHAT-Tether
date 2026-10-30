@@ -90,8 +90,11 @@ abstract class TetherDatabase : RoomDatabase() {
 
         private fun applyHardeningPragmas(db: SupportSQLiteDatabase) {
             try {
+                // WAL: baca tidak terblokir saat tulis. auto_vacuum harus NONE sebelum masuk WAL.
+                db.query("PRAGMA auto_vacuum = NONE;").close()
+                db.query("PRAGMA journal_mode = WAL;").close()
+                db.query("PRAGMA synchronous = NORMAL;").close()
                 db.query("PRAGMA secure_delete = ON;").close()
-                db.query("PRAGMA auto_vacuum = FULL;").close()
             } catch (_: Exception) {}
         }
     }

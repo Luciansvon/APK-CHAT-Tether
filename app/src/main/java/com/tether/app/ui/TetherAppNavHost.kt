@@ -1,6 +1,7 @@
 package com.tether.app.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -20,6 +21,14 @@ fun TetherAppNavHost() {
     val partnerProfile by chatViewModel.partnerProfile.collectAsState()
 
     val startDestination = if (isRoomConfigured) "chat" else "room_setup"
+
+    LaunchedEffect(isRoomConfigured) {
+        if (!isRoomConfigured) {
+            navController.navigate("room_setup") {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
 
     NavHost(
         navController = navController,

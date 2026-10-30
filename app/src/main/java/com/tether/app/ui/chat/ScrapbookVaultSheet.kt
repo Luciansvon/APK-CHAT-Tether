@@ -76,6 +76,7 @@ fun ScrapbookVaultSheet(
     pairingPayloadProvider: (() -> PairingPayload)? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     onClaimCoupon: ((String) -> Unit)? = null,
+    onLeaveRoom: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -84,9 +85,10 @@ fun ScrapbookVaultSheet(
     val coupons by db.couponDao().getAllCouponsFlow().collectAsState(initial = emptyList())
     val messages by db.messageDao().getAllMessagesFlow().collectAsState(initial = emptyList())
 
-    // 0: Kupon, 1: Memori (Polaroid & Kaset), 2: Kunci P2P Pairing
+    // 0: Kupon, 1: Memori (Polaroid & Kaset), 2: Kamar & Kamera
     var selectedTab by remember { mutableIntStateOf(initialTab) }
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    val roomCode = remember { KeystoreManager.getRoomCode(context)?.uppercase() ?: "-" }
 
     LaunchedEffect(Unit) {
         val payload = withContext(Dispatchers.IO) {
@@ -177,7 +179,7 @@ fun ScrapbookVaultSheet(
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val tabs = listOf("🎟️ KUPON", "📷 MEMORI", "🔐 PAIRING")
+                val tabs = listOf("🎟️ KUPON", "📷 MEMORI", "🔐 KAMAR")
                 tabs.forEachIndexed { index, title ->
                     val isSelected = selectedTab == index
                     Box(
@@ -326,27 +328,46 @@ fun ScrapbookVaultSheet(
                                         isFoggy = false,
                                         modifier = Modifier.padding(top = 12.dp)
                                     ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(Color(0xFFE5DBC2)),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.Center
+                                        val thumb = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
+                                            initialValue = null,
+                                            key1 = msg.content
                                         ) {
-                                            Icon(
-                                                painter = painterResource(id = R.drawable.ic_pixel_camera),
-                                                contentDescription = "Camera",
-                                                modifier = Modifier.size(32.dp),
-                                                tint = PixelDarkInk
+                                            value = withContext(Dispatchers.IO) {
+                                                com.tether.app.core.designsystem.util.BitmapLoader
+                                                    .decodeSampledBitmap(msg.content, reqSizePx = 400)
+                                            }
+                                        }.value
+
+                                        if (thumb != null) {
+                                            androidx.compose.foundation.Image(
+                                                bitmap = thumb,
+                                                contentDescription = msg.caption ?: "Foto",
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
                                             )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = "[ GOSOK BUKA FOTO ]",
-                                                fontFamily = PixelFont,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = PixelDarkInk
-                                            )
+                                        } else {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(Color(0xFFE5DBC2)),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_pixel_camera),
+                                                    contentDescription = "Camera",
+                                                    modifier = Modifier.size(32.dp),
+                                                    tint = PixelDarkInk
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = "[ FOTO ]",
+                                                    fontFamily = PixelFont,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = PixelDarkInk
+                                                )
+                                            }
                                         }
                                     }
                                 } else {
@@ -361,7 +382,7 @@ fun ScrapbookVaultSheet(
                     }
                 }
                 2 -> {
-                    // TAB 3: KUNCI PAIRING & MILESTONE
+                    // TAB 3: KAMAR RAHASIA BERDUA
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -369,11 +390,48 @@ fun ScrapbookVaultSheet(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        WashiRibbon(text = "◆ KUNCI PASANGAN OFFLINE ◆")
+                        WashiRibbon(text = "◆ KAMAR RAHASIA BERDUA ◆")
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(18.dp))
 
-                        // Box QR Pixel
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White)
+                                .border(2.dp, PixelDarkInk)
+                                .padding(16.dp)
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    text = "KODE KAMAR",
+                                    fontFamily = PixelFont,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PixelSecondaryInk
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = roomCode,
+                                    fontFamily = PixelFont,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PixelDarkInk
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Pesan di kamar ini terenkripsi AES-256-GCM langsung dari HP ke HP.",
+                                    fontFamily = PixelFont,
+                                    fontSize = 9.5.sp,
+                                    color = PixelSecondaryInk,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // QR Kunci Identitas
                         Box {
                             Box(
                                 modifier = Modifier
@@ -385,29 +443,55 @@ fun ScrapbookVaultSheet(
                                 modifier = Modifier
                                     .background(Color.White)
                                     .border(2.dp, PixelDarkInk)
-                                    .padding(12.dp),
+                                    .padding(10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 qrBitmap?.let { bmp ->
                                     Image(
                                         bitmap = bmp.asImageBitmap(),
-                                        contentDescription = "QR Pairing",
-                                        modifier = Modifier.size(190.dp)
+                                        contentDescription = "QR Kunci Identitas",
+                                        modifier = Modifier.size(150.dp)
                                     )
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         Text(
-                            text = "Pindai kode ini langsung dari kamera pasangan untuk menghubungkan obrolan privat tanpa server.",
+                            text = "Tunjukkan kode kamar di atas kepada pasanganmu. Kalian berdua cukup memasukkan kode dan kata sandi yang sama.",
                             fontFamily = PixelFont,
-                            fontSize = 10.5.sp,
+                            fontSize = 10.sp,
                             color = PixelSecondaryInk,
                             textAlign = TextAlign.Center,
                             lineHeight = 15.sp
                         )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        if (onLeaveRoom != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(38.dp)
+                                    .background(Color.White)
+                                    .border(1.5.dp, PixelHeartRed)
+                                    .clickable {
+                                        coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
+                                            onLeaveRoom()
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "KELUAR & GANTI KAMAR",
+                                    fontFamily = PixelFont,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PixelHeartRed
+                                )
+                            }
+                        }
                     }
                 }
             }

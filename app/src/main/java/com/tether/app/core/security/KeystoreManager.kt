@@ -48,6 +48,14 @@ object KeystoreManager {
         return !getRoomCode(context).isNullOrBlank() && !getRoomPasscode(context).isNullOrBlank()
     }
 
+    fun clearRoomConfig(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .remove(KEY_ROOM_CODE)
+            .remove(KEY_ROOM_PASSCODE)
+            .commit()
+    }
+
     private fun getOrCreateMasterSecretKey(context: Context): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         if (!keyStore.containsAlias(MASTER_KEY_ALIAS)) {

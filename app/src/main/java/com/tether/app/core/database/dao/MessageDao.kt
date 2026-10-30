@@ -12,6 +12,12 @@ interface MessageDao {
     @Query("SELECT * FROM messages ORDER BY lamportTimestamp ASC, localTimestamp ASC")
     fun getAllMessagesFlow(): Flow<List<MessageEntity>>
 
+    @Query(
+        "SELECT * FROM (SELECT * FROM messages ORDER BY lamportTimestamp DESC, localTimestamp DESC LIMIT :limit) " +
+            "ORDER BY lamportTimestamp ASC, localTimestamp ASC"
+    )
+    fun getRecentMessagesFlow(limit: Int = 100): Flow<List<MessageEntity>>
+
     @Query("SELECT MAX(lamportTimestamp) FROM messages")
     suspend fun getLatestLamportTimestamp(): Long?
 

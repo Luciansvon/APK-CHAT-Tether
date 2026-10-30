@@ -1,6 +1,9 @@
 package com.tether.app.ui.chat
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -27,12 +30,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +60,9 @@ import com.tether.app.core.designsystem.theme.PixelGridDot
 import com.tether.app.core.designsystem.theme.PixelHeartRed
 import com.tether.app.core.designsystem.theme.PixelMutedInk
 import com.tether.app.core.designsystem.theme.PixelPaperBg
+import com.tether.app.core.designsystem.util.BitmapLoader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.tether.app.core.designsystem.theme.PixelSecondaryInk
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -84,6 +94,17 @@ fun ChatScreen(
     var showVaultSheet by remember { mutableStateOf(false) }
     var vaultInitialTab by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            val caption = inputText.takeIf { it.isNotBlank() }
+            viewModel.sendPhotoMessage(context, uri, caption)
+            if (caption != null) viewModel.onInputTextChange("")
+        }
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -107,6 +128,13 @@ fun ChatScreen(
                     mood = pMood,
                     partnerAvatarUri = pAvatar
                 )
+            },
+            onUpdateRoom = { roomCode, passcode ->
+                viewModel.updateRoomConfig(roomCode, passcode)
+            },
+            onLeaveRoom = {
+                showEditProfileDialog = false
+                viewModel.leaveRoom()
             }
         )
     }
@@ -118,6 +146,10 @@ fun ChatScreen(
             onToggleAudio = { audioId -> viewModel.toggleAudioPlayback(audioId) },
             pairingPayloadProvider = { viewModel.getLocalPairingPayload() },
             onClaimCoupon = { couponId -> viewModel.claimCoupon(couponId) },
+            onLeaveRoom = {
+                showVaultSheet = false
+                viewModel.leaveRoom()
+            },
             onDismiss = { showVaultSheet = false }
         )
     }
@@ -128,7 +160,7 @@ fun ChatScreen(
                 partnerName = partnerProfile?.partnerName ?: "Pasangan",
                 connectionStatus = connectionLabel,
                 isP2pActive = isConnected,
-                moodPhase = partnerProfile?.moodCycle ?: "Luteal",
+                moodPhase = partnerProfile?.moodCycle ?: "Happy",
                 avatarUri = partnerProfile?.partnerAvatarUri,
                 level = coupleLevel?.currentLevel ?: 1,
                 levelTitle = coupleLevel?.title() ?: "Benang Baru",
@@ -146,7 +178,13 @@ fun ChatScreen(
                 inputText = inputText,
                 onInputChange = viewModel::onInputTextChange,
                 onSendClick = viewModel::sendTextMessage,
-                onCameraClick = viewModel::sendPolaroidSample,
+                onCameraClick = {
+                    photoPickerLauncher.launch(
+                        androidx.activity.result.PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                        )
+                    )
+                },
                 onCouponClick = {
                     vaultInitialTab = 0
                     showVaultSheet = true
@@ -313,27 +351,42 @@ fun ChatScreen(
                                     isFoggy = message.isFoggy,
                                     rotation = message.rotation
                                 ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(Color(0xFFE5DBC2)),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.ic_pixel_camera),
-                                            contentDescription = "Photo",
-                                            modifier = Modifier.size(32.dp),
-                                            tint = PixelDarkInk
+                                    val photoBitmap = produceState<ImageBitmap?>(initialValue = null, key1 = message.content) {
+                                        value = withContext(Dispatchers.IO) {
+                                            BitmapLoader.decodeSampledBitmap(message.content, reqSizePx = 512)
+                                        }
+                                    }.value
+
+                                    if (photoBitmap != null) {
+                                        Image(
+                                            bitmap = photoBitmap,
+                                            contentDescription = message.caption ?: "Foto Polaroid",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
                                         )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "[ GOSOK UNTUK BUKA FOTO ]",
-                                            fontFamily = PixelFont,
-                                            fontSize = 9.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = PixelDarkInk
-                                        )
+                                    } else {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color(0xFFE5DBC2)),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.ic_pixel_camera),
+                                                contentDescription = "Photo",
+                                                modifier = Modifier.size(32.dp),
+                                                tint = PixelDarkInk
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "[ FOTO POLAROID ]",
+                                                fontFamily = PixelFont,
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = PixelDarkInk
+                                            )
+                                        }
                                     }
                                 }
                             }

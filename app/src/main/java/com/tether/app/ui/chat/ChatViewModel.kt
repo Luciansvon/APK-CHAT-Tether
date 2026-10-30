@@ -34,6 +34,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
+import android.util.Log
+import com.tether.app.core.network.config.CloudConfig
+import kotlinx.coroutines.Dispatchers
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 import javax.crypto.SecretKey
@@ -67,7 +76,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRoomConfigured: MutableStateFlow<Boolean> = MutableStateFlow(KeystoreManager.isRoomConfigured(application))
     val isRoomConfigured: StateFlow<Boolean> = _isRoomConfigured.asStateFlow()
 
-    val messages: StateFlow<List<MessageEntity>> = messageDao.getAllMessagesFlow()
+    val messages: StateFlow<List<MessageEntity>> = messageDao.getRecentMessagesFlow(100)
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val partnerProfile: StateFlow<PartnerProfileEntity?> = profileDao.getProfileFlow()
@@ -173,6 +182,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _isRoomConfigured.value = true
             firebaseManager.start()
         }
+    }
+
+    fun updateRoomConfig(roomCode: String, passcode: String) {
+        val app = getApplication<Application>()
+        KeystoreManager.saveRoomConfig(app, roomCode, passcode)
+        viewModelScope.launch {
+            refreshSessionKey()
+            _isRoomConfigured.value = true
+            firebaseManager.start()
+        }
+    }
+
+    fun leaveRoom() {
+        val app = getApplication<Application>()
+        KeystoreManager.clearRoomConfig(app)
+        activeSessionKey = null
+        _isRoomConfigured.value = false
     }
 
     private suspend fun refreshSessionKey() {
@@ -584,6 +610,85 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun sendPhotoMessage(context: Context, uri: Uri, caption: String? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val polaroidDir = File(context.filesDir, "polaroids").apply { mkdirs() }
+                val localFile = File(polaroidDir, "polaroid_${UUID.randomUUID()}.jpg")
+
+                val stream = context.contentResolver.openInputStream(uri) ?: return@launch
+                val originalBmp = BitmapFactory.decodeStream(stream)
+                stream.close()
+                if (originalBmp == null) return@launch
+
+                val maxDim = 800
+                val longest = maxOf(originalBmp.width, originalBmp.height)
+                val scale = if (longest > maxDim) maxDim.toFloat() / longest else 1.0f
+                val targetBmp = if (scale < 1.0f) {
+                    Bitmap.createScaledBitmap(
+                        originalBmp,
+                        (originalBmp.width * scale).toInt(),
+                        (originalBmp.height * scale).toInt(),
+                        true
+                    )
+                } else {
+                    originalBmp
+                }
+
+                val bos = ByteArrayOutputStream()
+                targetBmp.compress(Bitmap.CompressFormat.JPEG, 75, bos)
+                val jpegBytes = bos.toByteArray()
+                if (targetBmp != originalBmp) targetBmp.recycle()
+                originalBmp.recycle()
+
+                FileOutputStream(localFile).use { it.write(jpegBytes) }
+                val localPath = localFile.absolutePath
+
+                val wireContent = if (CloudConfig.isDriveConfigured()) {
+                    DriveUploadManager.uploadBytes(jpegBytes, "image/jpeg", localFile.name) ?: run {
+                        val b64 = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
+                        "data:image/jpeg;base64,$b64"
+                    }
+                } else {
+                    val b64 = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
+                    "data:image/jpeg;base64,$b64"
+                }
+
+                val clock = currentLamportClock.incrementAndGet()
+                val msgId = UUID.randomUUID().toString()
+                val finalCaption = caption?.takeIf { it.isNotBlank() } ?: "Momen kita"
+                val msg = MessageEntity(
+                    id = msgId,
+                    senderId = "ME",
+                    type = "POLAROID",
+                    content = localPath,
+                    caption = finalCaption,
+                    lamportTimestamp = clock,
+                    localTimestamp = System.currentTimeMillis(),
+                    isFoggy = false,
+                    rotation = (-3..3).random().toFloat()
+                )
+
+                messageDao.insertMessage(msg)
+                addInteractionXp(25L, isMsg = true)
+                soundManager.playSendSound()
+
+                dispatchPacket(
+                    TetherPacket(
+                        id = msg.id,
+                        type = "POLAROID",
+                        senderId = "ME",
+                        content = wireContent,
+                        caption = msg.caption,
+                        lamportTimestamp = msg.lamportTimestamp
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Gagal kirim foto: ${e.message}")
+            }
+        }
+    }
+
     fun sendPolaroidSample() {
         soundManager.playSendSound()
         val clock = currentLamportClock.incrementAndGet()
@@ -702,11 +807,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "TEXT", "POLAROID", "WHISPER" -> {
                 soundManager.playReceiveSound()
                 addInteractionXp(15L, isMsg = true)
+                var resolvedContent = packet.content
+                if (packet.type == "POLAROID" && packet.content.startsWith("data:image/")) {
+                    try {
+                        val b64 = packet.content.substringAfter("base64,")
+                        val bytes = Base64.decode(b64, Base64.DEFAULT)
+                        val polaroidDir = File(getApplication<Application>().filesDir, "polaroids").apply { mkdirs() }
+                        val file = File(polaroidDir, "received_${packet.id}.jpg")
+                        FileOutputStream(file).use { it.write(bytes) }
+                        resolvedContent = file.absolutePath
+                    } catch (e: Exception) {
+                        Log.e("ChatViewModel", "Gagal menyimpan foto received: ${e.message}")
+                    }
+                }
                 val msg = MessageEntity(
                     id = packet.id,
                     senderId = "PARTNER",
                     type = packet.type,
-                    content = packet.content,
+                    content = resolvedContent,
                     caption = packet.caption,
                     duration = packet.duration,
                     lamportTimestamp = updatedClock,

@@ -68,7 +68,9 @@ fun EditProfileDialog(
     initialMood: String,
     initialAvatarUri: String?,
     onDismiss: () -> Unit,
-    onSave: (partnerName: String, myName: String, mood: String, avatarUri: String?) -> Unit
+    onSave: (partnerName: String, myName: String, mood: String, avatarUri: String?) -> Unit,
+    onUpdateRoom: (roomCode: String, passcode: String) -> Unit = { _, _ -> },
+    onLeaveRoom: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -79,6 +81,9 @@ fun EditProfileDialog(
     var aiPromptText by remember { mutableStateOf("cewek rambut coklat senyum manis") }
     var isGeneratingAi by remember { mutableStateOf(false) }
     val pixelGenerator = remember { PixelAvatarGenerator(context) }
+    var showRoomEdit by remember { mutableStateOf(false) }
+    var editRoomCode by remember { mutableStateOf(KeystoreManager.getRoomCode(context)?.uppercase() ?: "") }
+    var editPasscode by remember { mutableStateOf(KeystoreManager.getRoomPasscode(context) ?: "") }
 
     // Launcher galeri untuk memilih foto profil secara asinkron di IO thread & membersihkan file avatar lama
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -417,7 +422,7 @@ fun EditProfileDialog(
                     // Pilihan Mood / Fase Pasangan
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = "STATUS / FASE MOOD PASANGAN",
+                            text = "STATUS / MOOD PASANGAN",
                             fontFamily = PixelFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 9.sp,
@@ -425,7 +430,7 @@ fun EditProfileDialog(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        val presets = listOf("Luteal", "Follicular", "Ovulation", "Menstrual", "Happy", "Tired")
+                        val presets = listOf("Happy", "Kangen", "Sibuk", "Lelah", "Sedih", "Biasa")
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -482,15 +487,109 @@ fun EditProfileDialog(
                     }
 
                     val currentRoom = remember { KeystoreManager.getRoomCode(context)?.uppercase() ?: "-" }
-                    Text(
-                        text = "KAMAR BERDUA: $currentRoom",
-                        fontFamily = PixelFont,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PixelSecondaryInk,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    if (!showRoomEdit) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(PixelPaperBg)
+                                .border(1.5.dp, PixelDarkInk)
+                                .padding(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "KAMAR: $currentRoom",
+                                        fontFamily = PixelFont,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PixelDarkInk
+                                    )
+                                    Text(
+                                        text = "E2EE AES-256 Aktif",
+                                        fontFamily = PixelFont,
+                                        fontSize = 8.sp,
+                                        color = PixelSecondaryInk
+                                    )
+                                }
+                                Text(
+                                    text = "[ GANTI / KELUAR ]",
+                                    fontFamily = PixelFont,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PixelHeartRed,
+                                    modifier = Modifier.clickable { showRoomEdit = true }
+                                )
+                            }
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(PixelPaperBg)
+                                .border(1.5.dp, PixelDarkInk)
+                                .padding(8.dp)
+                        ) {
+                            Text(
+                                text = "KODE KAMAR BARU:",
+                                fontFamily = PixelFont,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PixelDarkInk
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            BasicTextField(
+                                value = editRoomCode,
+                                onValueChange = { editRoomCode = it.replace(" ", "").uppercase() },
+                                textStyle = TextStyle(fontFamily = PixelFont, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PixelDarkInk),
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White)
+                                    .border(1.dp, PixelDarkInk)
+                                    .padding(6.dp)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "KATA SANDI BARU:",
+                                fontFamily = PixelFont,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PixelDarkInk
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            BasicTextField(
+                                value = editPasscode,
+                                onValueChange = { editPasscode = it },
+                                textStyle = TextStyle(fontFamily = PixelFont, fontSize = 11.sp, color = PixelDarkInk),
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White)
+                                    .border(1.dp, PixelDarkInk)
+                                    .padding(6.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "⚠ KELUAR DARI KAMAR INI",
+                                fontFamily = PixelFont,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PixelHeartRed,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onDismiss()
+                                        onLeaveRoom()
+                                    }
+                                    .padding(vertical = 4.dp)
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
@@ -547,6 +646,9 @@ fun EditProfileDialog(
                                     .background(PixelHeartRed)
                                     .border(2.dp, PixelDarkInk)
                                     .clickable {
+                                        if (showRoomEdit && editRoomCode.isNotBlank() && editPasscode.isNotBlank()) {
+                                            onUpdateRoom(editRoomCode, editPasscode)
+                                        }
                                         onSave(partnerName, myName, mood, avatarUri)
                                         onDismiss()
                                     },
