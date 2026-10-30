@@ -83,7 +83,7 @@ fun ScrapbookVaultSheet(
     val coroutineScope = rememberCoroutineScope()
     val db = remember(context) { TetherDatabase.getInstance(context) }
     val coupons by db.couponDao().getAllCouponsFlow().collectAsState(initial = emptyList())
-    val messages by db.messageDao().getAllMessagesFlow().collectAsState(initial = emptyList())
+    val messages by db.messageDao().getMediaMessagesFlow(100).collectAsState(initial = emptyList())
 
     // 0: Kupon, 1: Memori (Polaroid & Kaset), 2: Kamar & Kamera
     var selectedTab by remember { mutableIntStateOf(initialTab) }

@@ -76,6 +76,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRoomConfigured: MutableStateFlow<Boolean> = MutableStateFlow(KeystoreManager.isRoomConfigured(application))
     val isRoomConfigured: StateFlow<Boolean> = _isRoomConfigured.asStateFlow()
 
+    // shortcut: chat hanya memuat 100 pesan terakhir; tambah paging saat riwayat lama dibutuhkan.
     val messages: StateFlow<List<MessageEntity>> = messageDao.getRecentMessagesFlow(100)
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 

@@ -18,6 +18,9 @@ interface MessageDao {
     )
     fun getRecentMessagesFlow(limit: Int = 100): Flow<List<MessageEntity>>
 
+    @Query("SELECT * FROM messages WHERE type IN ('POLAROID', 'WHISPER') ORDER BY localTimestamp DESC LIMIT :limit")
+    fun getMediaMessagesFlow(limit: Int = 100): Flow<List<MessageEntity>>
+
     @Query("SELECT MAX(lamportTimestamp) FROM messages")
     suspend fun getLatestLamportTimestamp(): Long?
 
