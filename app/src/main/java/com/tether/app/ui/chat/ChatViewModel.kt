@@ -9,6 +9,7 @@ import com.tether.app.core.database.entity.MessageEntity
 import com.tether.app.core.database.entity.PartnerProfileEntity
 import com.tether.app.core.network.model.TetherPacket
 import com.tether.app.core.network.p2p.TetherP2pManager
+import com.tether.app.core.network.relay.TetherRelayManager
 import com.tether.app.core.overlay.TetherOverlayManager
 import com.tether.app.core.sensor.HapticResonanceEngine
 import com.tether.app.core.sensor.ProximitySensorManager
@@ -30,6 +31,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val profileDao = db.partnerProfileDao()
 
     val p2pManager = TetherP2pManager(application)
+    val relayManager = TetherRelayManager()
     val proximitySensor = ProximitySensorManager(application)
     val hapticEngine = HapticResonanceEngine(application)
 
@@ -49,6 +51,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         p2pManager.startP2pEngine()
+        relayManager.startRelayEngine()
 
         viewModelScope.launch {
             seedDefaultCouponsAndProfile()
@@ -59,6 +62,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // Tangkap paket P2P yang masuk secara real-time
         viewModelScope.launch {
             p2pManager.incomingPackets.collect { packet ->
+                handleIncomingPacket(packet)
+            }
+        }
+
+        // Tangkap paket Relay Internet yang masuk secara real-time
+        viewModelScope.launch {
+            relayManager.incomingPackets.collect { packet ->
                 handleIncomingPacket(packet)
             }
         }
@@ -133,19 +143,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             messageDao.insertMessage(msg)
-            val peerIp = p2pManager.connectedPeerIp.value
-            if (peerIp != null) {
-                p2pManager.sendPacket(
-                    peerIp,
-                    TetherPacket(
-                        id = msg.id,
-                        type = "TEXT",
-                        senderId = "ME",
-                        content = text,
-                        lamportTimestamp = msg.lamportTimestamp
-                    )
+            dispatchPacket(
+                TetherPacket(
+                    id = msg.id,
+                    type = "TEXT",
+                    senderId = "ME",
+                    content = text,
+                    lamportTimestamp = msg.lamportTimestamp
                 )
-            }
+            )
+        }
+    }
+
+    private suspend fun dispatchPacket(packet: TetherPacket) {
+        val peerIp = p2pManager.connectedPeerIp.value
+        if (p2pManager.isP2pConnected.value && peerIp != null) {
+            p2pManager.sendPacket(peerIp, packet)
+        } else if (relayManager.isRelayConnected.value) {
+            relayManager.sendPacket(packet)
         }
     }
 
@@ -177,20 +192,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         localTimestamp = System.currentTimeMillis()
                     )
                     messageDao.insertMessage(msg)
-
-                    val peerIp = p2pManager.connectedPeerIp.value
-                    if (peerIp != null) {
-                        p2pManager.sendPacket(
-                            peerIp,
-                            TetherPacket(
-                                id = msg.id,
-                                type = "SYSTEM",
-                                senderId = "ME",
-                                content = msg.content,
-                                lamportTimestamp = msg.lamportTimestamp
-                            )
+                    dispatchPacket(
+                        TetherPacket(
+                            id = msg.id,
+                            type = "SYSTEM",
+                            senderId = "ME",
+                            content = msg.content,
+                            lamportTimestamp = msg.lamportTimestamp
                         )
-                    }
+                    )
                 }
                 is TetherCommand.Tug -> {
                     hapticEngine.playTugHaptic()
@@ -210,20 +220,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         localTimestamp = System.currentTimeMillis()
                     )
                     messageDao.insertMessage(msg)
-
-                    val peerIp = p2pManager.connectedPeerIp.value
-                    if (peerIp != null) {
-                        p2pManager.sendPacket(
-                            peerIp,
-                            TetherPacket(
-                                id = msg.id,
-                                type = "TUG",
-                                senderId = "ME",
-                                content = command.message ?: "Tether Tug!",
-                                lamportTimestamp = msg.lamportTimestamp
-                            )
+                    dispatchPacket(
+                        TetherPacket(
+                            id = msg.id,
+                            type = "TUG",
+                            senderId = "ME",
+                            content = command.message ?: "Tether Tug!",
+                            lamportTimestamp = msg.lamportTimestamp
                         )
-                    }
+                    )
                 }
                 is TetherCommand.Peluk -> {
                     val msg = MessageEntity(
@@ -237,21 +242,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         rotation = (-5..5).random() / 10f
                     )
                     messageDao.insertMessage(msg)
-
-                    val peerIp = p2pManager.connectedPeerIp.value
-                    if (peerIp != null) {
-                        p2pManager.sendPacket(
-                            peerIp,
-                            TetherPacket(
-                                id = msg.id,
-                                type = "TEXT",
-                                senderId = "ME",
-                                caption = msg.caption,
-                                content = command.message,
-                                lamportTimestamp = msg.lamportTimestamp
-                            )
+                    dispatchPacket(
+                        TetherPacket(
+                            id = msg.id,
+                            type = "TEXT",
+                            senderId = "ME",
+                            caption = msg.caption,
+                            content = command.message,
+                            lamportTimestamp = msg.lamportTimestamp
                         )
-                    }
+                    )
                 }
                 is TetherCommand.Solusi -> {
                     val msg = MessageEntity(
@@ -265,21 +265,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         rotation = (-5..5).random() / 10f
                     )
                     messageDao.insertMessage(msg)
-
-                    val peerIp = p2pManager.connectedPeerIp.value
-                    if (peerIp != null) {
-                        p2pManager.sendPacket(
-                            peerIp,
-                            TetherPacket(
-                                id = msg.id,
-                                type = "TEXT",
-                                senderId = "ME",
-                                caption = msg.caption,
-                                content = command.message,
-                                lamportTimestamp = msg.lamportTimestamp
-                            )
+                    dispatchPacket(
+                        TetherPacket(
+                            id = msg.id,
+                            type = "TEXT",
+                            senderId = "ME",
+                            caption = msg.caption,
+                            content = command.message,
+                            lamportTimestamp = msg.lamportTimestamp
                         )
-                    }
+                    )
                 }
                 is TetherCommand.Dadu -> {
                     val msg = MessageEntity(
@@ -291,20 +286,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         localTimestamp = System.currentTimeMillis()
                     )
                     messageDao.insertMessage(msg)
-
-                    val peerIp = p2pManager.connectedPeerIp.value
-                    if (peerIp != null) {
-                        p2pManager.sendPacket(
-                            peerIp,
-                            TetherPacket(
-                                id = msg.id,
-                                type = "SYSTEM",
-                                senderId = "ME",
-                                content = msg.content,
-                                lamportTimestamp = msg.lamportTimestamp
-                            )
+                    dispatchPacket(
+                        TetherPacket(
+                            id = msg.id,
+                            type = "SYSTEM",
+                            senderId = "ME",
+                            content = msg.content,
+                            lamportTimestamp = msg.lamportTimestamp
                         )
-                    }
+                    )
                 }
                 is TetherCommand.Unknown -> {
                     val msg = MessageEntity(
@@ -370,20 +360,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun claimCoupon(couponId: String) {
         viewModelScope.launch {
             couponDao.claimCoupon(couponId, System.currentTimeMillis())
-            val peerIp = p2pManager.connectedPeerIp.value
-            if (peerIp != null) {
-                val clock = currentLamportClock.incrementAndGet()
-                p2pManager.sendPacket(
-                    peerIp,
-                    TetherPacket(
-                        id = UUID.randomUUID().toString(),
-                        type = "COUPON_CLAIM",
-                        senderId = "ME",
-                        content = couponId,
-                        lamportTimestamp = clock
-                    )
+            val clock = currentLamportClock.incrementAndGet()
+            dispatchPacket(
+                TetherPacket(
+                    id = UUID.randomUUID().toString(),
+                    type = "COUPON_CLAIM",
+                    senderId = "ME",
+                    content = couponId,
+                    lamportTimestamp = clock
                 )
-            }
+            )
             hapticEngine.playTugHaptic()
         }
     }
@@ -471,6 +457,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         p2pManager.stop()
+        relayManager.stop()
         proximitySensor.stopListening()
     }
 }

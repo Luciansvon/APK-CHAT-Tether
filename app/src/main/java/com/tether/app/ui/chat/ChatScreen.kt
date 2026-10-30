@@ -66,6 +66,14 @@ fun ChatScreen(
     val partnerProfile by viewModel.partnerProfile.collectAsState()
     val inputText by viewModel.inputText.collectAsState()
     val isP2pActive by viewModel.p2pManager.isP2pConnected.collectAsState()
+    val isRelayActive by viewModel.relayManager.isRelayConnected.collectAsState()
+
+    val connectionLabel = when {
+        isP2pActive -> "P2P 0-Data"
+        isRelayActive -> "Online Cloud"
+        else -> "Standby"
+    }
+    val isConnected = isP2pActive || isRelayActive
     val playingAudioId by viewModel.playingAudioId.collectAsState()
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showVaultSheet by remember { mutableStateOf(false) }
@@ -108,8 +116,8 @@ fun ChatScreen(
         topBar = {
             TetherStatusHeader(
                 partnerName = partnerProfile?.partnerName ?: "Pasangan",
-                connectionStatus = if (isP2pActive) "P2P 0-Data" else "Standby",
-                isP2pActive = isP2pActive,
+                connectionStatus = connectionLabel,
+                isP2pActive = isConnected,
                 moodPhase = partnerProfile?.moodCycle ?: "Luteal",
                 avatarUri = partnerProfile?.partnerAvatarUri,
                 onProfileClick = { showEditProfileDialog = true },
