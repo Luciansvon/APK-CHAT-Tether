@@ -1,6 +1,7 @@
 package com.tether.app.core.network.relay
 
 import android.util.Log
+import com.tether.app.core.crypto.SessionCryptoEngine
 import com.tether.app.core.network.model.TetherPacket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,9 +21,11 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.util.concurrent.TimeUnit
+import javax.crypto.SecretKey
 
 class TetherRelayManager(
-    private val serverUrl: String = "wss://alarm.birescompanny.my.id/tether"
+    private val serverUrl: String = "wss://alarm.birescompanny.my.id/tether",
+    private val sessionKeyProvider: () -> SecretKey? = { null }
 ) {
     private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -66,10 +69,13 @@ class TetherRelayManager(
 
                     override fun onMessage(ws: WebSocket, text: String) {
                         try {
-                            val packet = TetherPacket.fromJson(text)
-                            if (packet != null) {
-                                scope.launch {
-                                    _incomingPackets.emit(packet)
+                            val unwrapped = SessionCryptoEngine.unwrapWireEnvelope(text, sessionKeyProvider())
+                            if (unwrapped != null) {
+                                val packet = TetherPacket.fromJson(unwrapped)
+                                if (packet != null) {
+                                    scope.launch {
+                                        _incomingPackets.emit(packet)
+                                    }
                                 }
                             }
                         } catch (e: Exception) {
@@ -96,8 +102,8 @@ class TetherRelayManager(
     fun sendPacket(packet: TetherPacket): Boolean {
         val ws = webSocket
         if (ws != null && _isRelayConnected.value) {
-            val json = packet.toJson()
-            return ws.send(json)
+            val wirePayload = SessionCryptoEngine.wrapWireEnvelope(packet.toJson(), sessionKeyProvider())
+            return ws.send(wirePayload)
         }
         return false
     }

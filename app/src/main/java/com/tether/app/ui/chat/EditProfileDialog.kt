@@ -1,6 +1,5 @@
 package com.tether.app.ui.chat
 
-import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,17 +21,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.tether.app.R
+import com.tether.app.core.ai.PixelAvatarGenerator
 import com.tether.app.core.designsystem.theme.PixelDarkInk
 import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelHeartRed
@@ -50,6 +51,11 @@ import com.tether.app.core.designsystem.theme.PixelMutedInk
 import com.tether.app.core.designsystem.theme.PixelPaperBg
 import com.tether.app.core.designsystem.theme.PixelPeachLight
 import com.tether.app.core.designsystem.theme.PixelSecondaryInk
+import com.tether.app.core.designsystem.theme.PixelWashiTint
+import com.tether.app.core.designsystem.util.BitmapLoader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
@@ -63,28 +69,43 @@ fun EditProfileDialog(
     onSave: (partnerName: String, myName: String, mood: String, avatarUri: String?) -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var partnerName by remember { mutableStateOf(initialPartnerName) }
     var myName by remember { mutableStateOf(initialMyName) }
     var mood by remember { mutableStateOf(initialMood) }
     var avatarUri by remember { mutableStateOf(initialAvatarUri) }
+    var aiPromptText by remember { mutableStateOf("cewek rambut coklat senyum manis") }
+    var isGeneratingAi by remember { mutableStateOf(false) }
+    val pixelGenerator = remember { PixelAvatarGenerator(context) }
 
-    // Launcher galeri untuk memilih foto profil
+    // Launcher galeri untuk memilih foto profil secara asinkron di IO thread & membersihkan file avatar lama
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { sourceUri ->
-            try {
-                // Simpan salinan foto ke penyimpanan lokal privat aplikasi agar permanen
-                val avatarDir = File(context.filesDir, "avatars").apply { if (!exists()) mkdirs() }
-                val targetFile = File(avatarDir, "partner_avatar_${System.currentTimeMillis()}.jpg")
-                context.contentResolver.openInputStream(sourceUri)?.use { input ->
-                    FileOutputStream(targetFile).use { output ->
-                        input.copyTo(output)
+            coroutineScope.launch {
+                val savedPath = withContext(Dispatchers.IO) {
+                    try {
+                        val avatarDir = File(context.filesDir, "avatars").apply { if (!exists()) mkdirs() }
+                        avatarDir.listFiles()?.forEach { oldFile ->
+                            if (oldFile.name.startsWith("partner_avatar_")) {
+                                oldFile.delete()
+                            }
+                        }
+                        val targetFile = File(avatarDir, "partner_avatar_${System.currentTimeMillis()}.jpg")
+                        context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                            FileOutputStream(targetFile).use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        targetFile.absolutePath
+                    } catch (_: Exception) {
+                        null
                     }
                 }
-                avatarUri = targetFile.absolutePath
-            } catch (e: Exception) {
-                e.printStackTrace()
+                if (savedPath != null) {
+                    avatarUri = savedPath
+                }
             }
         }
     }
@@ -156,13 +177,7 @@ fun EditProfileDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             val bitmap = remember(avatarUri) {
-                                avatarUri?.let { path ->
-                                    try {
-                                        BitmapFactory.decodeFile(path)?.asImageBitmap()
-                                    } catch (_: Exception) {
-                                        null
-                                    }
-                                }
+                                BitmapLoader.decodeSampledAvatar(avatarUri, reqSizePx = 256)
                             }
 
                             if (bitmap != null) {
@@ -185,29 +200,143 @@ fun EditProfileDialog(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Tombol Pilih Foto dari Galeri
-                    Box(
-                        modifier = Modifier
-                            .background(Color.White)
-                            .border(1.5.dp, PixelDarkInk)
-                            .clickable { galleryLauncher.launch("image/*") }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    // Tombol Aksi Avatar: Galeri & AI Pixel 9Router
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_pixel_camera),
-                                contentDescription = "Pilih Foto",
-                                modifier = Modifier.size(14.dp),
-                                tint = PixelDarkInk
+                        // Tombol Pilih Foto dari Galeri
+                        Box(
+                            modifier = Modifier
+                                .background(Color.White)
+                                .border(1.5.dp, PixelDarkInk)
+                                .clickable { galleryLauncher.launch("image/*") }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_pixel_camera),
+                                    contentDescription = "Pilih Foto",
+                                    modifier = Modifier.size(13.dp),
+                                    tint = PixelDarkInk
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "GALERI",
+                                    fontFamily = PixelFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 8.5.sp,
+                                    color = PixelDarkInk
+                                )
+                            }
+                        }
+
+                        // Tombol AI Pixel Generator (9Router)
+                        Box(
+                            modifier = Modifier
+                                .background(PixelPeachLight)
+                                .border(1.5.dp, PixelDarkInk)
+                                .clickable(enabled = !isGeneratingAi) {
+                                    coroutineScope.launch {
+                                        isGeneratingAi = true
+                                        val newAvatarPath = pixelGenerator.generatePixelAvatar(aiPromptText)
+                                        if (newAvatarPath != null) {
+                                            avatarUri = newAvatarPath
+                                        }
+                                        isGeneratingAi = false
+                                    }
+                                }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isGeneratingAi) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(12.dp),
+                                        strokeWidth = 2.dp,
+                                        color = PixelDarkInk
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "MERAJUT...",
+                                        fontFamily = PixelFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 8.5.sp,
+                                        color = PixelDarkInk
+                                    )
+                                } else {
+                                    Text(
+                                        text = "✨ AI PIXEL (9ROUTER)",
+                                        fontFamily = PixelFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 8.5.sp,
+                                        color = PixelDarkInk
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Input Deskripsi Prompt AI Pixel
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "DESKRIPSI KARAKTER PIXEL AI",
+                            fontFamily = PixelFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 8.sp,
+                            color = PixelSecondaryInk
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(32.dp)
+                                .background(Color.White)
+                                .border(1.dp, PixelDarkInk)
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            BasicTextField(
+                                value = aiPromptText,
+                                onValueChange = { aiPromptText = it },
+                                textStyle = TextStyle(
+                                    fontFamily = PixelFont,
+                                    fontSize = 9.sp,
+                                    color = PixelDarkInk
+                                ),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "GANTI DARI GALERI",
-                                fontFamily = PixelFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.5.sp,
-                                color = PixelDarkInk
-                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        // Preset Cepat Karakter Pixel
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(
+                                "cewek pita merah" to "Cewek",
+                                "cowok keren santai" to "Cowok",
+                                "kucing cozy" to "Kucing"
+                            ).forEach { (presetPrompt, label) ->
+                                Box(
+                                    modifier = Modifier
+                                        .background(PixelWashiTint)
+                                        .border(1.dp, PixelDarkInk)
+                                        .clickable {
+                                            aiPromptText = presetPrompt
+                                        }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = label.uppercase(),
+                                        fontFamily = PixelFont,
+                                        fontSize = 7.5.sp,
+                                        color = PixelDarkInk
+                                    )
+                                }
+                            }
                         }
                     }
 

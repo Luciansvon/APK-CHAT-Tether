@@ -5,6 +5,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SessionCryptoEngineTest {
@@ -68,6 +69,35 @@ class SessionCryptoEngineTest {
 
         val decrypted = SessionCryptoEngine.decryptPayload(encryptedEnvelope, bobKey)
         assertEquals(secretMessage, decrypted)
+    }
+
+    @Test
+    fun testWireEnvelopeEncryptionRoundtrip() {
+        val (alicePub, alicePriv) = SessionCryptoEngine.generateEphemeralKeyPair()
+        val (bobPub, bobPriv) = SessionCryptoEngine.generateEphemeralKeyPair()
+
+        val aliceKey = SessionCryptoEngine.deriveSharedAesKey(
+            alicePriv,
+            SessionCryptoEngine.encodeBase64(bobPub),
+            alicePub
+        )
+        val bobKey = SessionCryptoEngine.deriveSharedAesKey(
+            bobPriv,
+            SessionCryptoEngine.encodeBase64(alicePub),
+            bobPub
+        )
+
+        val rawPacketJson = "{\"id\":\"p1\",\"type\":\"TEXT\",\"senderId\":\"ME\",\"content\":\"Rahasia P2P\",\"lamportTimestamp\":7}"
+        val wireEnvelope = SessionCryptoEngine.wrapWireEnvelope(rawPacketJson, aliceKey)
+
+        assertTrue(wireEnvelope.contains("\"enc\""))
+        assertTrue(!wireEnvelope.contains("Rahasia P2P"))
+
+        val unwrapped = SessionCryptoEngine.unwrapWireEnvelope(wireEnvelope, bobKey)
+        assertEquals(rawPacketJson, unwrapped)
+
+        // Tanpa sessionKey, amplop terenkripsi wajib ditolak (null)
+        assertNull(SessionCryptoEngine.unwrapWireEnvelope(wireEnvelope, null))
     }
 
     @Test

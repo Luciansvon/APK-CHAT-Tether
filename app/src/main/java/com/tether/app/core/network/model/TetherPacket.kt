@@ -4,7 +4,7 @@ import org.json.JSONObject
 
 data class TetherPacket(
     val id: String,
-    val type: String, // "TEXT", "POLAROID", "WHISPER", "COUPON_CLAIM", "HAPTIC_TOUCH", "HEARTBEAT"
+    val type: String, // "TEXT", "POLAROID", "WHISPER", "COUPON_CLAIM", "HAPTIC_TOUCH", "HEARTBEAT", "TUG", "MOOD_UPDATE", "SYSTEM"
     val senderId: String,
     val content: String,
     val caption: String? = null,
@@ -36,13 +36,13 @@ data class TetherPacket(
                     type = obj.getString("type"),
                     senderId = obj.getString("senderId"),
                     content = obj.getString("content"),
-                    caption = if (obj.has("caption")) obj.getString("caption") else null,
-                    duration = if (obj.has("duration")) obj.getString("duration") else null,
+                    caption = if (obj.has("caption") && !obj.isNull("caption")) obj.getString("caption") else null,
+                    duration = if (obj.has("duration") && !obj.isNull("duration")) obj.getString("duration") else null,
                     lamportTimestamp = obj.getLong("lamportTimestamp"),
-                    touchX = if (obj.has("touchX")) obj.getDouble("touchX").toFloat() else null,
-                    touchY = if (obj.has("touchY")) obj.getDouble("touchY").toFloat() else null
+                    touchX = if (obj.has("touchX") && !obj.isNull("touchX")) obj.getDouble("touchX").toFloat() else null,
+                    touchY = if (obj.has("touchY") && !obj.isNull("touchY")) obj.getDouble("touchY").toFloat() else null
                 )
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 null
             }
         }

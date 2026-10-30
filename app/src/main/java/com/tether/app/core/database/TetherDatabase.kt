@@ -5,9 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.tether.app.core.database.dao.CoupleLevelDao
 import com.tether.app.core.database.dao.CouponDao
 import com.tether.app.core.database.dao.MessageDao
 import com.tether.app.core.database.dao.PartnerProfileDao
+import com.tether.app.core.database.entity.CoupleLevelEntity
 import com.tether.app.core.database.entity.CouponEntity
 import com.tether.app.core.database.entity.MessageEntity
 import com.tether.app.core.database.entity.PartnerProfileEntity
@@ -18,15 +20,17 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
     entities = [
         MessageEntity::class,
         CouponEntity::class,
-        PartnerProfileEntity::class
+        PartnerProfileEntity::class,
+        CoupleLevelEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class TetherDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun couponDao(): CouponDao
     abstract fun partnerProfileDao(): PartnerProfileDao
+    abstract fun coupleLevelDao(): CoupleLevelDao
 
     companion object {
         @Volatile
@@ -34,35 +38,61 @@ abstract class TetherDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): TetherDatabase {
             return INSTANCE ?: synchronized(this) {
-                val passphrase = KeystoreManager.getOrCreateDatabasePassphrase(context.applicationContext)
-                val factory = SupportOpenHelperFactory(passphrase)
+                INSTANCE ?: run {
+                    val passphrase = KeystoreManager.getOrCreateDatabasePassphrase(context.applicationContext)
+                    // clearPassphrase = true agar array byte passphrase langsung di-zero setelah koneksi dibuka
+                    val factory = SupportOpenHelperFactory(passphrase, null, true)
 
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    TetherDatabase::class.java,
-                    "tether_enc.db"
-                )
-                    .openHelperFactory(factory)
-                    .addCallback(object : Callback() {
-                        override fun onCreate(db: SupportSQLiteDatabase) {
-                            super.onCreate(db)
-                            try {
-                                db.query("PRAGMA secure_delete = ON;").close()
-                            } catch (_: Exception) {}
+                    val migration2to3 = object : androidx.room.migration.Migration(2, 3) {
+                        override fun migrate(db: SupportSQLiteDatabase) {
+                            db.execSQL(
+                                """
+                                CREATE TABLE IF NOT EXISTS `couple_level` (
+                                    `id` INTEGER NOT NULL,
+                                    `currentXp` INTEGER NOT NULL,
+                                    `currentLevel` INTEGER NOT NULL,
+                                    `totalMessagesSent` INTEGER NOT NULL,
+                                    `totalTugsSent` INTEGER NOT NULL,
+                                    `totalCouponsClaimed` INTEGER NOT NULL,
+                                    `lastInteractionTimestamp` INTEGER NOT NULL,
+                                    PRIMARY KEY(`id`)
+                                )
+                                """.trimIndent()
+                            )
                         }
-                        override fun onOpen(db: SupportSQLiteDatabase) {
-                            super.onOpen(db)
-                            try {
-                                db.query("PRAGMA secure_delete = ON;").close()
-                            } catch (_: Exception) {}
-                        }
-                    })
-                    .fallbackToDestructiveMigrationOnDowngrade()
-                    .build()
+                    }
 
-                INSTANCE = instance
-                instance
+                    val instance = Room.databaseBuilder(
+                        context.applicationContext,
+                        TetherDatabase::class.java,
+                        "tether_enc.db"
+                    )
+                        .openHelperFactory(factory)
+                        .addMigrations(migration2to3)
+                        .addCallback(object : Callback() {
+                            override fun onCreate(db: SupportSQLiteDatabase) {
+                                super.onCreate(db)
+                                applyHardeningPragmas(db)
+                            }
+                            override fun onOpen(db: SupportSQLiteDatabase) {
+                                super.onOpen(db)
+                                applyHardeningPragmas(db)
+                            }
+                        })
+                        .fallbackToDestructiveMigrationOnDowngrade()
+                        .build()
+
+                    INSTANCE = instance
+                    instance
+                }
             }
+        }
+
+        private fun applyHardeningPragmas(db: SupportSQLiteDatabase) {
+            try {
+                db.query("PRAGMA secure_delete = ON;").close()
+                db.query("PRAGMA auto_vacuum = FULL;").close()
+            } catch (_: Exception) {}
         }
     }
 }

@@ -1,6 +1,5 @@
 package com.tether.app.core.overlay
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -30,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -43,6 +41,7 @@ import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelHeartRed
 import com.tether.app.core.designsystem.theme.PixelMutedInk
 import com.tether.app.core.designsystem.theme.PixelPaperBg
+import com.tether.app.core.designsystem.util.BitmapLoader
 
 @Composable
 fun TetherTugOverlayView(
@@ -75,13 +74,7 @@ fun TetherTugOverlayView(
     )
 
     val avatarBitmap = remember(partnerAvatarUri) {
-        partnerAvatarUri?.let { path ->
-            try {
-                BitmapFactory.decodeFile(path)?.asImageBitmap()
-            } catch (_: Exception) {
-                null
-            }
-        }
+        BitmapLoader.decodeSampledAvatar(partnerAvatarUri, reqSizePx = 128)
     }
 
     Box(

@@ -1,6 +1,5 @@
 package com.tether.app.core.designsystem.components
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -30,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -45,6 +43,7 @@ import com.tether.app.core.designsystem.theme.PixelMutedInk
 import com.tether.app.core.designsystem.theme.PixelPaperBg
 import com.tether.app.core.designsystem.theme.PixelSageGreen
 import com.tether.app.core.designsystem.theme.PixelWashiTint
+import com.tether.app.core.designsystem.util.BitmapLoader
 
 @Composable
 fun TetherStatusHeader(
@@ -53,6 +52,9 @@ fun TetherStatusHeader(
     isP2pActive: Boolean,
     moodPhase: String,
     avatarUri: String? = null,
+    level: Int = 1,
+    levelTitle: String = "Benang Baru",
+    levelProgressRatio: Float = 0f,
     onProfileClick: () -> Unit,
     onTouchpadClick: () -> Unit,
     onVaultClick: () -> Unit,
@@ -70,13 +72,7 @@ fun TetherStatusHeader(
     )
 
     val avatarBitmap = remember(avatarUri) {
-        avatarUri?.let { path ->
-            try {
-                BitmapFactory.decodeFile(path)?.asImageBitmap()
-            } catch (_: Exception) {
-                null
-            }
-        }
+        BitmapLoader.decodeSampledAvatar(avatarUri, reqSizePx = 128)
     }
 
     // Status connection colors: Olive/Sage for P2P, muted ink for standby (avoids mixing with user terracotta red)
@@ -270,12 +266,51 @@ fun TetherStatusHeader(
             }
         }
 
-        // Garis Pembatas Struktural Sticky Header (2.dp Solid Pixel Dark Ink)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(PixelDarkInk)
-        )
+        // Garis Pembatas Struktural Sticky Header & Mini Level XP Bar
+        Column(modifier = Modifier.fillMaxWidth().clickable { onProfileClick() }) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(PixelWashiTint)
+                    .padding(horizontal = 14.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "LV.$level $levelTitle".uppercase(),
+                    fontFamily = PixelFont,
+                    fontSize = 7.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PixelDarkInk
+                )
+                Text(
+                    text = "${(levelProgressRatio * 100).toInt()}% XP",
+                    fontFamily = PixelFont,
+                    fontSize = 7.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PixelMutedInk
+                )
+            }
+            // XP Progress Track
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(Color.White)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(levelProgressRatio.coerceIn(0.02f, 1f))
+                        .height(3.dp)
+                        .background(PixelHeartRed)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .background(PixelDarkInk)
+            )
+        }
     }
 }

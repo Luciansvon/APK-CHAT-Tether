@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,7 +39,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tether.app.R
-import com.tether.app.core.database.entity.MessageEntity
 import com.tether.app.core.designsystem.components.FavorCouponTicket
 import com.tether.app.core.designsystem.components.PolaroidFrame
 import com.tether.app.core.designsystem.components.ScrapbookBottomBar
@@ -54,6 +52,9 @@ import com.tether.app.core.designsystem.theme.PixelHeartRed
 import com.tether.app.core.designsystem.theme.PixelMutedInk
 import com.tether.app.core.designsystem.theme.PixelPaperBg
 import com.tether.app.core.designsystem.theme.PixelSecondaryInk
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ChatScreen(
@@ -64,6 +65,7 @@ fun ChatScreen(
 ) {
     val messages by viewModel.messages.collectAsState()
     val partnerProfile by viewModel.partnerProfile.collectAsState()
+    val coupleLevel by viewModel.coupleLevel.collectAsState()
     val inputText by viewModel.inputText.collectAsState()
     val isP2pActive by viewModel.p2pManager.isP2pConnected.collectAsState()
     val isRelayActive by viewModel.relayManager.isRelayConnected.collectAsState()
@@ -82,7 +84,9 @@ fun ChatScreen(
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size)
+            // Item 0 adalah WashiRibbon header, sehingga indeks item pesan terakhir = messages.size
+            val targetIndex = messages.size.coerceAtLeast(0)
+            listState.animateScrollToItem(targetIndex)
         }
     }
 
@@ -107,6 +111,9 @@ fun ChatScreen(
     if (showVaultSheet) {
         ScrapbookVaultSheet(
             initialTab = vaultInitialTab,
+            playingAudioId = playingAudioId,
+            onToggleAudio = { audioId -> viewModel.toggleAudioPlayback(audioId) },
+            pairingPayloadProvider = { viewModel.getLocalPairingPayload() },
             onClaimCoupon = { couponId -> viewModel.claimCoupon(couponId) },
             onDismiss = { showVaultSheet = false }
         )
@@ -120,6 +127,9 @@ fun ChatScreen(
                 isP2pActive = isConnected,
                 moodPhase = partnerProfile?.moodCycle ?: "Luteal",
                 avatarUri = partnerProfile?.partnerAvatarUri,
+                level = coupleLevel?.currentLevel ?: 1,
+                levelTitle = coupleLevel?.title() ?: "Benang Baru",
+                levelProgressRatio = coupleLevel?.levelProgressRatio() ?: 0f,
                 onProfileClick = { showEditProfileDialog = true },
                 onTouchpadClick = onNavigateToTouchpad,
                 onVaultClick = {
@@ -287,15 +297,18 @@ fun ChatScreen(
 
                 // Render Pesan Dinamis
                 items(messages, key = { it.id }) { message ->
+                    val timeStr = remember(message.localTimestamp) {
+                        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.localTimestamp))
+                    }
+                    val bubbleAlignment = if (message.senderId == "ME") Alignment.CenterEnd else Alignment.CenterStart
+
                     when (message.type) {
                         "TEXT" -> {
-                            if (message.senderId == "ME") {
-                                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                                    ChatBubbleMe(text = message.content, time = "baru saja", caption = message.caption)
-                                }
-                            } else {
-                                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-                                    ChatBubbleThem(text = message.content, time = "baru saja", caption = message.caption)
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = bubbleAlignment) {
+                                if (message.senderId == "ME") {
+                                    ChatBubbleMe(text = message.content, time = timeStr, caption = message.caption)
+                                } else {
+                                    ChatBubbleThem(text = message.content, time = timeStr, caption = message.caption)
                                 }
                             }
                         }
@@ -310,10 +323,7 @@ fun ChatScreen(
                             }
                         }
                         "POLAROID" -> {
-                            val timeStr = remember(message.localTimestamp) {
-                                java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(message.localTimestamp))
-                            }
-                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = bubbleAlignment) {
                                 PolaroidFrame(
                                     caption = message.caption ?: "Momen kita",
                                     timestamp = timeStr,
@@ -346,12 +356,22 @@ fun ChatScreen(
                             }
                         }
                         "WHISPER" -> {
-                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = bubbleAlignment) {
                                 WhisperCassetteCard(
                                     duration = message.duration ?: "0:10",
                                     isPlaying = playingAudioId == message.id,
                                     onPlayClick = { viewModel.toggleAudioPlayback(message.id) },
                                     rotation = message.rotation
+                                )
+                            }
+                        }
+                        "COUPON" -> {
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = bubbleAlignment) {
+                                FavorCouponTicket(
+                                    title = message.caption ?: "KUPON KASIH SAYANG",
+                                    description = "Tiket #${message.content.uppercase()} telah diklaim",
+                                    isClaimed = true,
+                                    onClaimClick = {}
                                 )
                             }
                         }

@@ -3,6 +3,7 @@ package com.tether.app
 import com.tether.app.core.network.model.TetherPacket
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TetherPacketTest {
@@ -52,5 +53,18 @@ class TetherPacketTest {
         assertNotNull(parsed)
         assertEquals("0:14", parsed?.duration)
         assertEquals("WHISPER", parsed?.type)
+    }
+
+    @Test
+    fun testExplicitNullFieldsDeserialization() {
+        val jsonWithExplicitNulls = """
+            {"id":"n1","type":"TEXT","senderId":"ME","content":"Halo","caption":null,"duration":null,"lamportTimestamp":5,"touchX":null,"touchY":null}
+        """.trimIndent()
+        val parsed = TetherPacket.fromJson(jsonWithExplicitNulls)
+        assertNotNull(parsed)
+        assertNull(parsed?.caption)
+        assertNull(parsed?.duration)
+        assertNull(parsed?.touchX)
+        assertNull(parsed?.touchY)
     }
 }

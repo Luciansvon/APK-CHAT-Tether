@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,11 +50,12 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun CouponsScreen(
+    onClaimCoupon: ((String) -> Unit)? = null,
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val db = TetherDatabase.getInstance(context)
+    val db = remember(context) { TetherDatabase.getInstance(context) }
     val coupons by db.couponDao().getAllCouponsFlow().collectAsState(initial = emptyList())
 
     Scaffold(
@@ -147,9 +149,13 @@ fun CouponsScreen(
                             description = coupon.description,
                             isClaimed = coupon.isClaimed,
                             onClaimClick = {
-                                coroutineScope.launch {
-                                    withContext(Dispatchers.IO) {
-                                        db.couponDao().claimCoupon(coupon.id, System.currentTimeMillis())
+                                if (onClaimCoupon != null) {
+                                    onClaimCoupon(coupon.id)
+                                } else {
+                                    coroutineScope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            db.couponDao().claimCoupon(coupon.id, System.currentTimeMillis())
+                                        }
                                     }
                                 }
                             }

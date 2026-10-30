@@ -1,5 +1,6 @@
 package com.tether.app.core.crypto
 
+import org.json.JSONObject
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
@@ -17,6 +18,7 @@ import javax.crypto.spec.SecretKeySpec
 object SessionCryptoEngine {
     private const val GCM_TAG_BITS = 128
     private const val GCM_IV_BYTES = 12
+    private const val ENVELOPE_VERSION = 1
 
     fun generateEphemeralKeyPair(): Pair<ByteArray, ByteArray> {
         val kpg = KeyPairGenerator.getInstance("EC")
@@ -30,9 +32,10 @@ object SessionCryptoEngine {
         partnerPublicKeyBase64: String,
         myPublicKeyBytes: ByteArray
     ): SecretKey {
+        val partnerPublicKeyBytes = decodeBase64(partnerPublicKeyBase64)
         val keyFactory = KeyFactory.getInstance("EC")
         val privSpec = PKCS8EncodedKeySpec(myPrivateKeyBytes)
-        val pubSpec = X509EncodedKeySpec(decodeBase64(partnerPublicKeyBase64))
+        val pubSpec = X509EncodedKeySpec(partnerPublicKeyBytes)
 
         val privateKey = keyFactory.generatePrivate(privSpec)
         val publicKey = keyFactory.generatePublic(pubSpec)
@@ -42,13 +45,25 @@ object SessionCryptoEngine {
         agreement.doPhase(publicKey, true)
         val rawSharedSecret = agreement.generateSecret()
 
-        // HKDF / SHA-256 Key Derivation dengan pengikatan konteks sesi
+        // HKDF / SHA-256 Key Derivation dengan pengikatan deterministik kedua kunci publik (anti-UKS)
+        val myPubB64 = encodeBase64(myPublicKeyBytes)
+        val partnerPubB64 = encodeBase64(partnerPublicKeyBytes)
+        val sortedPubKeys = if (myPubB64 <= partnerPubB64) {
+            listOf(myPublicKeyBytes, partnerPublicKeyBytes)
+        } else {
+            listOf(partnerPublicKeyBytes, myPublicKeyBytes)
+        }
+
         val digest = MessageDigest.getInstance("SHA-256")
         digest.update("TETHER_E2EE_V1".toByteArray(Charsets.UTF_8))
         digest.update(rawSharedSecret)
+        sortedPubKeys.forEach { digest.update(it) }
         val keyMaterial = digest.digest()
+
         rawSharedSecret.fill(0)
-        return SecretKeySpec(keyMaterial, "AES")
+        return SecretKeySpec(keyMaterial, "AES").also {
+            keyMaterial.fill(0)
+        }
     }
 
     fun encryptPayload(plainJson: String, sessionKey: SecretKey): String {
@@ -73,6 +88,36 @@ object SessionCryptoEngine {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, sessionKey, GCMParameterSpec(GCM_TAG_BITS, iv))
             String(cipher.doFinal(cipherText), Charsets.UTF_8)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Membungkus payload JSON ke dalam amplop E2EE AES-256-GCM saat sessionKey aktif.
+     */
+    fun wrapWireEnvelope(plainJson: String, sessionKey: SecretKey?): String {
+        if (sessionKey == null) return plainJson
+        val ciphertextB64 = encryptPayload(plainJson, sessionKey)
+        return JSONObject().apply {
+            put("v", ENVELOPE_VERSION)
+            put("enc", ciphertextB64)
+        }.toString()
+    }
+
+    /**
+     * Membuka amplop E2EE dari jaringan P2P/Relay.
+     * Mendukung amplop terenkripsi ("enc") maupun fallback paket plaintext saat belum memiliki shared key.
+     */
+    fun unwrapWireEnvelope(wireLine: String, sessionKey: SecretKey?): String? {
+        return try {
+            val obj = JSONObject(wireLine)
+            if (obj.has("enc") && !obj.isNull("enc")) {
+                val key = sessionKey ?: return null
+                decryptPayload(obj.getString("enc"), key)
+            } else {
+                wireLine
+            }
         } catch (_: Exception) {
             null
         }

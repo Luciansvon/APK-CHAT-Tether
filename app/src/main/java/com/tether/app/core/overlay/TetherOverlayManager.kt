@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.tether.app.BuildConfig
 import com.tether.app.MainActivity
 import com.tether.app.core.designsystem.theme.TetherTheme
 import com.tether.app.core.sensor.HapticResonanceEngine
@@ -51,16 +52,17 @@ object TetherOverlayManager {
         mainHandler.post {
             dismiss()
 
-            Log.d("TetherOverlay", "showTugOverlay executing on main thread. canDrawOverlays=${canDrawOverlays(context)}")
-            if (!canDrawOverlays(context)) {
+            val appContext = context.applicationContext
+            Log.d("TetherOverlay", "showTugOverlay executing on main thread. canDrawOverlays=${canDrawOverlays(appContext)}")
+            if (!canDrawOverlays(appContext)) {
                 Log.d("TetherOverlay", "Overlay permission not granted, skipping background overlay.")
                 return@post
             }
 
-            val haptics = hapticEngine ?: HapticResonanceEngine(context.applicationContext).also { hapticEngine = it }
+            val haptics = hapticEngine ?: HapticResonanceEngine(appContext).also { hapticEngine = it }
             haptics.playTugHaptic()
 
-            val wm = context.applicationContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             windowManager = wm
 
             val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -70,12 +72,17 @@ object TetherOverlayManager {
                 WindowManager.LayoutParams.TYPE_PHONE
             }
 
+            var windowFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            if (!BuildConfig.DEBUG) {
+                windowFlags = windowFlags or WindowManager.LayoutParams.FLAG_SECURE
+            }
+
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutFlag,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                windowFlags,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -87,13 +94,13 @@ object TetherOverlayManager {
             owner.onResume()
             lifecycleOwner = owner
 
-            val container = android.widget.FrameLayout(context.applicationContext).apply {
+            val container = android.widget.FrameLayout(appContext).apply {
                 setViewTreeLifecycleOwner(owner)
                 setViewTreeViewModelStoreOwner(owner)
                 setViewTreeSavedStateRegistryOwner(owner)
             }
 
-            val composeView = ComposeView(context.applicationContext).apply {
+            val composeView = ComposeView(appContext).apply {
                 setViewCompositionStrategy(androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)
                 setViewTreeLifecycleOwner(owner)
                 setViewTreeViewModelStoreOwner(owner)
@@ -109,10 +116,10 @@ object TetherOverlayManager {
                                 dismiss()
                             },
                             onOpenChat = {
-                                val intent = Intent(context, MainActivity::class.java).apply {
+                                val intent = Intent(appContext, MainActivity::class.java).apply {
                                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                                 }
-                                context.startActivity(intent)
+                                appContext.startActivity(intent)
                                 dismiss()
                             },
                             onDismiss = {

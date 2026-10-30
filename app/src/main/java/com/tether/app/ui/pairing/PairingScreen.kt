@@ -35,6 +35,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -48,20 +49,34 @@ import com.tether.app.core.designsystem.theme.PixelPaperBg
 import com.tether.app.core.designsystem.theme.PixelSecondaryInk
 import com.tether.app.core.pairing.PairingPayload
 import com.tether.app.core.pairing.QrCodeHelper
+import com.tether.app.core.security.KeystoreManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PairingScreen(
+    pairingPayloadProvider: (() -> PairingPayload)? = null,
+    onCompletePairing: ((PairingPayload) -> Unit)? = null,
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     LaunchedEffect(Unit) {
-        val payload = PairingPayload(
-            partnerId = "user_" + System.currentTimeMillis().toString().takeLast(6),
-            partnerName = "Bima",
-            publicKey = "tether_ed25519_pub_key_offline",
-            timestamp = System.currentTimeMillis()
-        )
+        val payload = withContext(Dispatchers.IO) {
+            if (pairingPayloadProvider != null) {
+                pairingPayloadProvider()
+            } else {
+                val (pubB64, privBytes) = KeystoreManager.getOrCreateIdentityKeyPair(context)
+                privBytes.fill(0)
+                PairingPayload(
+                    partnerId = KeystoreManager.getOrCreateDevicePartnerId(context),
+                    partnerName = "Bima",
+                    publicKey = pubB64,
+                    timestamp = System.currentTimeMillis()
+                )
+            }
+        }
         qrBitmap = QrCodeHelper.generateQrBitmap(payload.toJson(), 480)
     }
 

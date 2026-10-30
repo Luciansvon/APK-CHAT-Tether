@@ -30,7 +30,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -43,15 +42,15 @@ import com.tether.app.core.designsystem.theme.PixelGridDot
 import com.tether.app.core.designsystem.theme.PixelHeartRed
 import com.tether.app.core.designsystem.theme.PixelPaperBg
 import com.tether.app.core.designsystem.theme.PixelSecondaryInk
-import com.tether.app.core.overlay.TetherOverlayManager
-import com.tether.app.core.sensor.HapticResonanceEngine
 
 @Composable
 fun TouchpadScreen(
-    hapticEngine: HapticResonanceEngine,
+    partnerName: String = "Pasangan",
+    partnerAvatarUri: String? = null,
+    onTouchPulse: (Float, Float) -> Unit,
+    onSendTug: () -> Unit,
     onBackClick: () -> Unit
 ) {
-    val context = LocalContext.current
     var touchPoint by remember { mutableStateOf<Offset?>(null) }
 
     Box(
@@ -59,7 +58,7 @@ fun TouchpadScreen(
             .fillMaxSize()
             .background(PixelPaperBg)
     ) {
-        // Touch detector on background
+        // Touch detector on background -> transmits HAPTIC_TOUCH coordinates over P2P
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -67,7 +66,7 @@ fun TouchpadScreen(
                     detectTapGestures(
                         onPress = { offset ->
                             touchPoint = offset
-                            hapticEngine.playHeartbeatResonance()
+                            onTouchPulse(offset.x, offset.y)
                             tryAwaitRelease()
                             touchPoint = null
                         }
@@ -161,7 +160,7 @@ fun TouchpadScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Tempel dan tahan jarimu di layar untuk mengirimkan getaran detak jantung ke pasanganmu secara langsung.",
+                        text = "Tempel dan tahan jarimu di layar untuk mengirimkan getaran detak jantung ke $partnerName secara langsung.",
                         fontFamily = PixelFont,
                         fontSize = 10.5.sp,
                         color = PixelSecondaryInk,
@@ -171,7 +170,7 @@ fun TouchpadScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Tombol Uji 100% Floating Compose Overlay
+                    // Tombol Tarik Benang & Floating Compose Overlay
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -189,16 +188,12 @@ fun TouchpadScreen(
                                 .background(PixelHeartRed)
                                 .border(1.5.dp, PixelDarkInk)
                                 .clickable {
-                                    android.util.Log.d("TetherOverlay", "TouchpadScreen: Uji Floating Overlay button tapped!")
-                                    TetherOverlayManager.showTugOverlay(
-                                        context = context,
-                                        partnerName = "Anisa"
-                                    )
+                                    onSendTug()
                                 },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "◆ ⚡ UJI FLOATING OVERLAY ⚡ ◆",
+                                text = "◆ ⚡ TARIK TETHER & FLOATING OVERLAY ⚡ ◆",
                                 fontFamily = PixelFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 10.sp,

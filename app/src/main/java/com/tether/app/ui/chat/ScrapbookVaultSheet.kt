@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tether.app.R
 import com.tether.app.core.database.TetherDatabase
-import com.tether.app.core.database.entity.MessageEntity
 import com.tether.app.core.designsystem.components.FavorCouponTicket
 import com.tether.app.core.designsystem.components.PolaroidFrame
 import com.tether.app.core.designsystem.components.WashiRibbon
@@ -60,11 +59,10 @@ import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelHeartRed
 import com.tether.app.core.designsystem.theme.PixelMutedInk
 import com.tether.app.core.designsystem.theme.PixelPaperBg
-import com.tether.app.core.designsystem.theme.PixelPeachLight
 import com.tether.app.core.designsystem.theme.PixelSecondaryInk
 import com.tether.app.core.pairing.PairingPayload
 import com.tether.app.core.pairing.QrCodeHelper
-import kotlinx.coroutines.CoroutineScope
+import com.tether.app.core.security.KeystoreManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -73,13 +71,16 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ScrapbookVaultSheet(
     initialTab: Int = 0,
+    playingAudioId: String? = null,
+    onToggleAudio: ((String) -> Unit)? = null,
+    pairingPayloadProvider: (() -> PairingPayload)? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     onClaimCoupon: ((String) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val db = remember { TetherDatabase.getInstance(context) }
+    val db = remember(context) { TetherDatabase.getInstance(context) }
     val coupons by db.couponDao().getAllCouponsFlow().collectAsState(initial = emptyList())
     val messages by db.messageDao().getAllMessagesFlow().collectAsState(initial = emptyList())
 
@@ -88,12 +89,20 @@ fun ScrapbookVaultSheet(
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     LaunchedEffect(Unit) {
-        val payload = PairingPayload(
-            partnerId = "user_" + System.currentTimeMillis().toString().takeLast(6),
-            partnerName = "Bima",
-            publicKey = "tether_ed25519_pub_key_offline",
-            timestamp = System.currentTimeMillis()
-        )
+        val payload = withContext(Dispatchers.IO) {
+            if (pairingPayloadProvider != null) {
+                pairingPayloadProvider()
+            } else {
+                val (pubB64, privBytes) = KeystoreManager.getOrCreateIdentityKeyPair(context)
+                privBytes.fill(0)
+                PairingPayload(
+                    partnerId = KeystoreManager.getOrCreateDevicePartnerId(context),
+                    partnerName = "Bima",
+                    publicKey = pubB64,
+                    timestamp = System.currentTimeMillis()
+                )
+            }
+        }
         qrBitmap = QrCodeHelper.generateQrBitmap(payload.toJson(), 400)
     }
 
@@ -304,8 +313,8 @@ fun ScrapbookVaultSheet(
 
                                 WhisperCassetteCard(
                                     duration = "0:14",
-                                    isPlaying = false,
-                                    onPlayClick = {}
+                                    isPlaying = playingAudioId == "vault_default_sample",
+                                    onPlayClick = { onToggleAudio?.invoke("vault_default_sample") }
                                 )
                             }
                         } else {
@@ -343,8 +352,8 @@ fun ScrapbookVaultSheet(
                                 } else {
                                     WhisperCassetteCard(
                                         duration = msg.duration ?: "0:10",
-                                        isPlaying = false,
-                                        onPlayClick = {}
+                                        isPlaying = playingAudioId == msg.id,
+                                        onPlayClick = { onToggleAudio?.invoke(msg.id) }
                                     )
                                 }
                             }

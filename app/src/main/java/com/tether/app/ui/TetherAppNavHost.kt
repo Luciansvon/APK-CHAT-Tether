@@ -1,6 +1,8 @@
 package com.tether.app.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -15,6 +17,7 @@ import com.tether.app.ui.touchpad.TouchpadScreen
 fun TetherAppNavHost() {
     val navController = rememberNavController()
     val chatViewModel: ChatViewModel = viewModel()
+    val partnerProfile by chatViewModel.partnerProfile.collectAsState()
 
     NavHost(
         navController = navController,
@@ -31,19 +34,25 @@ fun TetherAppNavHost() {
 
         composable("touchpad") {
             TouchpadScreen(
-                hapticEngine = chatViewModel.hapticEngine,
+                partnerName = partnerProfile?.partnerName ?: "Pasangan",
+                partnerAvatarUri = partnerProfile?.partnerAvatarUri,
+                onTouchPulse = { x, y -> chatViewModel.sendTouchPulse(x, y) },
+                onSendTug = { chatViewModel.sendTugSignal(showLocalOverlay = true) },
                 onBackClick = { navController.popBackStack() }
             )
         }
 
         composable("coupons") {
             CouponsScreen(
+                onClaimCoupon = { couponId -> chatViewModel.claimCoupon(couponId) },
                 onBackClick = { navController.popBackStack() }
             )
         }
 
         composable("pairing") {
             PairingScreen(
+                pairingPayloadProvider = { chatViewModel.getLocalPairingPayload() },
+                onCompletePairing = { payload -> chatViewModel.completePairing(payload) },
                 onBackClick = { navController.popBackStack() }
             )
         }
