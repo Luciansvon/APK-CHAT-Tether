@@ -13,6 +13,7 @@ import com.tether.app.core.network.relay.TetherRelayManager
 import com.tether.app.core.overlay.TetherOverlayManager
 import com.tether.app.core.sensor.HapticResonanceEngine
 import com.tether.app.core.sensor.ProximitySensorManager
+import com.tether.app.core.sound.SoundEffectManager
 import com.tether.app.domain.command.TetherCommand
 import com.tether.app.domain.command.TetherCommandParser
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val relayManager = TetherRelayManager()
     val proximitySensor = ProximitySensorManager(application)
     val hapticEngine = HapticResonanceEngine(application)
+    val soundManager = SoundEffectManager(application)
 
     val messages: StateFlow<List<MessageEntity>> = messageDao.getAllMessagesFlow()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -129,6 +131,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        soundManager.playSendSound()
         val clock = currentLamportClock.incrementAndGet()
 
         val msg = MessageEntity(
@@ -165,6 +168,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun executeCommand(rawText: String) {
+        soundManager.playSendSound()
         val command = TetherCommandParser.parse(rawText)
         viewModelScope.launch {
             val clock = currentLamportClock.incrementAndGet()
@@ -312,6 +316,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendPolaroidSample() {
+        soundManager.playSendSound()
         val clock = currentLamportClock.incrementAndGet()
         val msg = MessageEntity(
             id = UUID.randomUUID().toString(),
@@ -330,6 +335,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendWhisperSample() {
+        soundManager.playSendSound()
         val clock = currentLamportClock.incrementAndGet()
         val msg = MessageEntity(
             id = UUID.randomUUID().toString(),
@@ -381,6 +387,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         when (packet.type) {
             "TEXT", "POLAROID", "WHISPER" -> {
+                soundManager.playReceiveSound()
                 val msg = MessageEntity(
                     id = packet.id,
                     senderId = "PARTNER",
@@ -397,6 +404,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 hapticEngine.playHeartbeatResonance()
             }
             "TUG" -> {
+                soundManager.playReceiveSound()
                 hapticEngine.playTugHaptic()
                 val partnerName = partnerProfile.value?.partnerName ?: "Pasangan"
                 if (TetherOverlayManager.canDrawOverlays(getApplication())) {
@@ -420,6 +428,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 messageDao.insertMessage(msg)
             }
             "SYSTEM" -> {
+                soundManager.playReceiveSound()
                 val msg = MessageEntity(
                     id = packet.id,
                     senderId = "PARTNER",
@@ -459,5 +468,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         p2pManager.stop()
         relayManager.stop()
         proximitySensor.stopListening()
+        soundManager.release()
     }
 }
