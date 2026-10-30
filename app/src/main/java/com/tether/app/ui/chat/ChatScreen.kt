@@ -93,6 +93,8 @@ fun ChatScreen(
     }
     val isConnected = isP2pActive || isFirebaseActive || isRelayActive
     val playingAudioId by viewModel.playingAudioId.collectAsState()
+    val isRecordingAudio by viewModel.isRecordingAudio.collectAsState()
+    val recordingDurationSeconds by viewModel.recordingDurationSeconds.collectAsState()
     val canLoadOlder by viewModel.canLoadOlderMessages.collectAsState()
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showVaultSheet by remember { mutableStateOf(false) }
@@ -107,6 +109,14 @@ fun ChatScreen(
             val caption = inputText.takeIf { it.isNotBlank() }
             viewModel.sendPhotoMessage(context, uri, caption)
             if (caption != null) viewModel.onInputTextChange("")
+        }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.startAudioRecording(context)
         }
     }
 
@@ -198,6 +208,22 @@ fun ChatScreen(
                 onCouponClick = {
                     vaultInitialTab = 0
                     showVaultSheet = true
+                },
+                isRecordingAudio = isRecordingAudio,
+                recordingDurationSeconds = recordingDurationSeconds,
+                onStartRecordAudio = {
+                    if (androidx.core.content.ContextCompat.checkSelfPermission(
+                            context,
+                            android.Manifest.permission.RECORD_AUDIO
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    ) {
+                        viewModel.startAudioRecording(context)
+                    } else {
+                        audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                onStopRecordAudio = { send ->
+                    viewModel.stopAudioRecording(send)
                 }
             )
         },

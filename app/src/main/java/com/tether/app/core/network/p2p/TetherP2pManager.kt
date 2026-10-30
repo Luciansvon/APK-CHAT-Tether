@@ -173,6 +173,7 @@ class TetherP2pManager(
             override fun onDiscoveryStarted(serviceType: String) {}
             override fun onDiscoveryStopped(serviceType: String) {}
 
+            @Suppress("DEPRECATION")
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 if (serviceInfo.serviceName == registeredServiceName ||
                     serviceInfo.serviceName == localServiceName

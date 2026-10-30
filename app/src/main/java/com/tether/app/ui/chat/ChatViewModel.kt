@@ -24,10 +24,14 @@ import com.tether.app.core.sound.SoundEffectManager
 import com.tether.app.domain.command.TetherCommand
 import com.tether.app.domain.command.TetherCommandParser
 import android.content.Context
+import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.net.Uri
+import android.os.Build
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 import javax.crypto.SecretKey
@@ -120,6 +125,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _playingAudioId = MutableStateFlow<String?>(null)
     val playingAudioId = _playingAudioId.asStateFlow()
 
+    private val _isRecordingAudio = MutableStateFlow(false)
+    val isRecordingAudio = _isRecordingAudio.asStateFlow()
+
+    private val _recordingDurationSeconds = MutableStateFlow(0)
+    val recordingDurationSeconds = _recordingDurationSeconds.asStateFlow()
+
+    private var mediaRecorder: MediaRecorder? = null
+    private var recordingFile: File? = null
+    private var recordingTimerJob: Job? = null
+    private var mediaPlayer: MediaPlayer? = null
     private var audioPlaybackJob: Job? = null
     private val currentLamportClock = AtomicLong(0L)
 
@@ -745,6 +760,126 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun startAudioRecording(context: Context) {
+        if (_isRecordingAudio.value) return
+        try {
+            val whispersDir = File(context.filesDir, "whispers").apply { mkdirs() }
+            val file = File(whispersDir, "whisper_${UUID.randomUUID()}.m4a")
+            recordingFile = file
+
+            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(context)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+
+            recorder.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioEncodingBitRate(64000)
+                setAudioSamplingRate(44100)
+                setOutputFile(file.absolutePath)
+                prepare()
+                start()
+            }
+            mediaRecorder = recorder
+            _isRecordingAudio.value = true
+            _recordingDurationSeconds.value = 0
+            hapticEngine.playTouchPulse()
+
+            recordingTimerJob?.cancel()
+            recordingTimerJob = viewModelScope.launch {
+                while (isActive && _isRecordingAudio.value) {
+                    delay(1000L)
+                    _recordingDurationSeconds.update { it + 1 }
+                    if (_recordingDurationSeconds.value >= 60) {
+                        stopAudioRecording(send = true)
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("ChatViewModel", "Gagal memulai perekaman audio: ${e.message}")
+            stopAudioRecording(send = false)
+        }
+    }
+
+    fun stopAudioRecording(send: Boolean) {
+        recordingTimerJob?.cancel()
+        recordingTimerJob = null
+
+        val recorder = mediaRecorder
+        mediaRecorder = null
+        try {
+            recorder?.stop()
+        } catch (_: Exception) {}
+        try {
+            recorder?.release()
+        } catch (_: Exception) {}
+
+        _isRecordingAudio.value = false
+
+        val file = recordingFile
+        val durationSec = _recordingDurationSeconds.value
+        _recordingDurationSeconds.value = 0
+        val durationStr = String.format(Locale.getDefault(), "%d:%02d", durationSec / 60, durationSec % 60)
+
+        if (!send || file == null || !file.exists() || file.length() < 100L || durationSec < 1) {
+            file?.delete()
+            recordingFile = null
+            return
+        }
+
+        recordingFile = null
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val bytes = file.readBytes()
+                val wireContent = if (CloudConfig.isDriveConfigured()) {
+                    DriveUploadManager.uploadBytes(bytes, "audio/mp4", file.name) ?: run {
+                        val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                        "data:audio/mp4;base64,$b64"
+                    }
+                } else {
+                    val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    "data:audio/mp4;base64,$b64"
+                }
+
+                val clock = currentLamportClock.incrementAndGet()
+                val msgId = UUID.randomUUID().toString()
+                val msg = MessageEntity(
+                    id = msgId,
+                    senderId = "ME",
+                    type = "WHISPER",
+                    content = file.absolutePath,
+                    duration = durationStr,
+                    lamportTimestamp = clock,
+                    localTimestamp = System.currentTimeMillis(),
+                    isDelivered = false,
+                    rotation = (-3..3).random().toFloat()
+                )
+
+                messageDao.insertMessage(msg)
+                addInteractionXp(25L, isMsg = true)
+                soundManager.playSendSound()
+
+                dispatchPacket(
+                    TetherPacket(
+                        id = msg.id,
+                        type = "WHISPER",
+                        senderId = "ME",
+                        content = wireContent,
+                        duration = durationStr,
+                        lamportTimestamp = msg.lamportTimestamp
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Gagal mengirim voice note: ${e.message}")
+            }
+        }
+    }
+
     fun sendWhisperSample() {
         soundManager.playSendSound()
         val clock = currentLamportClock.incrementAndGet()
@@ -776,15 +911,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleAudioPlayback(id: String) {
         audioPlaybackJob?.cancel()
+        audioPlaybackJob = null
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        } catch (_: Exception) {}
+        mediaPlayer = null
+
         if (_playingAudioId.value == id) {
             _playingAudioId.value = null
             proximitySensor.stopListening()
+            return
+        }
+
+        val msg = messages.value.firstOrNull { it.id == id }
+        val audioPath = msg?.content
+        val audioFile = if (audioPath != null) File(audioPath) else null
+
+        _playingAudioId.value = id
+        proximitySensor.startListening()
+        hapticEngine.playTouchPulse()
+
+        if (audioFile != null && audioFile.exists()) {
+            try {
+                val mp = MediaPlayer().apply {
+                    setDataSource(audioFile.absolutePath)
+                    prepare()
+                    start()
+                    setOnCompletionListener {
+                        _playingAudioId.value = null
+                        proximitySensor.stopListening()
+                        try { it.release() } catch (_: Exception) {}
+                        mediaPlayer = null
+                    }
+                    setOnErrorListener { _, _, _ ->
+                        _playingAudioId.value = null
+                        proximitySensor.stopListening()
+                        try { mediaPlayer?.release() } catch (_: Exception) {}
+                        mediaPlayer = null
+                        true
+                    }
+                }
+                mediaPlayer = mp
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Gagal memutar audio: ${e.message}")
+                _playingAudioId.value = null
+                proximitySensor.stopListening()
+            }
         } else {
-            _playingAudioId.value = id
-            proximitySensor.startListening()
-            hapticEngine.playTouchPulse()
+            // Fallback untuk audio streaming atau sample mock
             audioPlaybackJob = viewModelScope.launch {
-                delay(14_000L)
+                delay(6000L)
                 if (_playingAudioId.value == id) {
                     _playingAudioId.value = null
                     proximitySensor.stopListening()
@@ -849,6 +1026,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         resolvedContent = file.absolutePath
                     } catch (e: Exception) {
                         Log.e("ChatViewModel", "Gagal menyimpan foto received: ${e.message}")
+                    }
+                } else if (packet.type == "WHISPER" && packet.content.startsWith("data:audio/")) {
+                    try {
+                        val b64 = packet.content.substringAfter("base64,")
+                        val bytes = Base64.decode(b64, Base64.DEFAULT)
+                        val whisperDir = File(getApplication<Application>().filesDir, "whispers").apply { mkdirs() }
+                        val file = File(whisperDir, "received_${packet.id}.m4a")
+                        FileOutputStream(file).use { it.write(bytes) }
+                        resolvedContent = file.absolutePath
+                    } catch (e: Exception) {
+                        Log.e("ChatViewModel", "Gagal menyimpan audio received: ${e.message}")
                     }
                 }
                 val msg = MessageEntity(
@@ -1012,6 +1200,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        stopAudioRecording(send = false)
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        } catch (_: Exception) {}
+        mediaPlayer = null
         audioPlaybackJob?.cancel()
         p2pManager.stop()
         relayManager.stop()
