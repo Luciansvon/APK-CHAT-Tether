@@ -9,26 +9,39 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.tether.app.ui.chat.ChatScreen
 import com.tether.app.ui.chat.ChatViewModel
-import com.tether.app.ui.coupons.CouponsScreen
-import com.tether.app.ui.pairing.PairingScreen
+import com.tether.app.ui.room.RoomSetupScreen
 import com.tether.app.ui.touchpad.TouchpadScreen
 
 @Composable
 fun TetherAppNavHost() {
     val navController = rememberNavController()
     val chatViewModel: ChatViewModel = viewModel()
+    val isRoomConfigured by chatViewModel.isRoomConfigured.collectAsState()
     val partnerProfile by chatViewModel.partnerProfile.collectAsState()
+
+    val startDestination = if (isRoomConfigured) "chat" else "room_setup"
 
     NavHost(
         navController = navController,
-        startDestination = "chat"
+        startDestination = startDestination
     ) {
+        composable("room_setup") {
+            RoomSetupScreen(
+                initialMyName = partnerProfile?.myName?.takeIf { it != "Saya" } ?: "",
+                initialPartnerName = partnerProfile?.partnerName?.takeIf { it != "Pasangan" } ?: "",
+                onJoinRoom = { myName, partnerName, roomCode, passcode ->
+                    chatViewModel.setupRoom(myName, partnerName, roomCode, passcode)
+                    navController.navigate("chat") {
+                        popUpTo("room_setup") { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable("chat") {
             ChatScreen(
                 viewModel = chatViewModel,
-                onNavigateToTouchpad = { navController.navigate("touchpad") },
-                onNavigateToCoupons = { navController.navigate("coupons") },
-                onNavigateToPairing = { navController.navigate("pairing") }
+                onNavigateToTouchpad = { navController.navigate("touchpad") }
             )
         }
 
@@ -38,21 +51,6 @@ fun TetherAppNavHost() {
                 partnerAvatarUri = partnerProfile?.partnerAvatarUri,
                 onTouchPulse = { x, y -> chatViewModel.sendTouchPulse(x, y) },
                 onSendTug = { chatViewModel.sendTugSignal(showLocalOverlay = true) },
-                onBackClick = { navController.popBackStack() }
-            )
-        }
-
-        composable("coupons") {
-            CouponsScreen(
-                onClaimCoupon = { couponId -> chatViewModel.claimCoupon(couponId) },
-                onBackClick = { navController.popBackStack() }
-            )
-        }
-
-        composable("pairing") {
-            PairingScreen(
-                pairingPayloadProvider = { chatViewModel.getLocalPairingPayload() },
-                onCompletePairing = { payload -> chatViewModel.completePairing(payload) },
                 onBackClick = { navController.popBackStack() }
             )
         }

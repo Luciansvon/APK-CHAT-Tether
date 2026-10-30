@@ -13,8 +13,8 @@ android {
         applicationId = "com.tether.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.2.6"
+        versionCode = 8
+        versionName = "0.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -89,25 +89,17 @@ dependencies {
     implementation(libs.sqlcipher.android)
     implementation(libs.androidx.sqlite.ktx)
 
-    // Security & Keystore
-    implementation(libs.androidx.security.crypto)
-
     // Coroutines & Network
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
 
-    // CameraX & QR
-    implementation(libs.androidx.camera.core)
-    implementation(libs.androidx.camera.camera2)
-    implementation(libs.androidx.camera.lifecycle)
-    implementation(libs.androidx.camera.view)
+    // QR Code Generator
     implementation(libs.zxing.core)
 
     // Media & Audio
     implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.ui)
 
     // Testing
     testImplementation(libs.junit)

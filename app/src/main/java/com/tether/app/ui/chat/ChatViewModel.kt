@@ -25,6 +25,7 @@ import com.tether.app.domain.command.TetherCommand
 import com.tether.app.domain.command.TetherCommandParser
 import android.content.Context
 import android.net.Uri
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,11 +57,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         sessionKeyProvider = { activeSessionKey }
     )
     val firebaseManager = FirebaseRealtimeManager(
+        roomCodeProvider = { KeystoreManager.getRoomCode(application) },
         sessionKeyProvider = { activeSessionKey }
     )
     val proximitySensor = ProximitySensorManager(application)
     val hapticEngine = HapticResonanceEngine(application)
     val soundManager = SoundEffectManager(application)
+
+    private val _isRoomConfigured: MutableStateFlow<Boolean> = MutableStateFlow(KeystoreManager.isRoomConfigured(application))
+    val isRoomConfigured: StateFlow<Boolean> = _isRoomConfigured.asStateFlow()
 
     val messages: StateFlow<List<MessageEntity>> = messageDao.getAllMessagesFlow()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -115,9 +120,70 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 handleIncomingPacket(packet)
             }
         }
+
+        // Pantau status online untuk mengirim ulang pesan tertunda (outbox retry)
+        viewModelScope.launch {
+            combine(
+                p2pManager.isP2pConnected,
+                firebaseManager.isConnected,
+                relayManager.isRelayConnected
+            ) { p2p, fb, relay -> p2p || fb || relay }
+                .collect { isOnline ->
+                    if (isOnline) {
+                        flushPendingMessages()
+                    }
+                }
+        }
+    }
+
+    private suspend fun flushPendingMessages() {
+        val undelivered = messageDao.getUndeliveredMessages()
+        for (msg in undelivered) {
+            val packet = TetherPacket(
+                id = msg.id,
+                type = msg.type,
+                senderId = msg.senderId,
+                content = msg.content,
+                caption = msg.caption,
+                duration = msg.duration,
+                lamportTimestamp = msg.lamportTimestamp
+            )
+            dispatchPacket(packet)
+        }
+    }
+
+    fun setupRoom(myName: String, partnerName: String, roomCode: String, passcode: String) {
+        val app = getApplication<Application>()
+        KeystoreManager.saveRoomConfig(app, roomCode, passcode)
+        viewModelScope.launch {
+            val current = profileDao.getProfile()
+            val partnerId = current?.partnerId ?: "partner_1"
+            profileDao.saveProfile(
+                PartnerProfileEntity(
+                    partnerId = partnerId,
+                    partnerName = partnerName.trim(),
+                    myName = myName.trim(),
+                    moodCycle = current?.moodCycle ?: "Happy",
+                    publicKey = "",
+                    isPaired = true,
+                    pairedAt = System.currentTimeMillis()
+                )
+            )
+            refreshSessionKey()
+            _isRoomConfigured.value = true
+            firebaseManager.start()
+        }
     }
 
     private suspend fun refreshSessionKey() {
+        val app = getApplication<Application>()
+        val roomCode = KeystoreManager.getRoomCode(app)
+        val passcode = KeystoreManager.getRoomPasscode(app)
+        if (!roomCode.isNullOrBlank() && !passcode.isNullOrBlank()) {
+            activeSessionKey = SessionCryptoEngine.deriveRoomAesKey(roomCode, passcode)
+            return
+        }
+
         val profile = profileDao.getProfile() ?: return
         val partnerKeyB64 = profile.publicKey
         if (partnerKeyB64.isBlank() || partnerKeyB64 == "pk_test_sample" || partnerKeyB64 == "tether_ed25519_pub_key_offline") {
@@ -143,7 +209,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val deviceId = KeystoreManager.getOrCreateDevicePartnerId(app)
         val (myPubB64, myPrivBytes) = KeystoreManager.getOrCreateIdentityKeyPair(app)
         myPrivBytes.fill(0)
-        val myName = partnerProfile.value?.myName ?: "Bima"
+        val myName = partnerProfile.value?.myName ?: "Saya"
         return PairingPayload(
             partnerId = deviceId,
             partnerName = myName,
@@ -159,7 +225,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 PartnerProfileEntity(
                     partnerId = payload.partnerId,
                     partnerName = payload.partnerName,
-                    myName = current?.myName ?: "Bima",
+                    myName = current?.myName ?: "Saya",
                     moodCycle = current?.moodCycle ?: "Happy",
                     publicKey = payload.publicKey,
                     p2pIpAddress = current?.p2pIpAddress,
@@ -175,16 +241,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun seedDefaultCouponsAndProfile() {
+        val app = getApplication<Application>()
+        val configured = KeystoreManager.isRoomConfigured(app)
         if (profileDao.getProfile() == null) {
             profileDao.saveProfile(
                 PartnerProfileEntity(
                     partnerId = "partner_1",
-                    partnerName = "Lina",
-                    myName = "Bima",
-                    moodCycle = "Luteal",
+                    partnerName = "Pasangan",
+                    myName = "Saya",
+                    moodCycle = "Happy",
                     publicKey = "",
-                    isPaired = true,
-                    pairedAt = System.currentTimeMillis()
+                    isPaired = configured,
+                    pairedAt = if (configured) System.currentTimeMillis() else 0L
                 )
             )
         }

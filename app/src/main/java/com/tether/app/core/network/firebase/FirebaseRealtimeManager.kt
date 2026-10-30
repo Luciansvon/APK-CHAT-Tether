@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -20,6 +22,7 @@ import java.util.concurrent.TimeUnit
 import javax.crypto.SecretKey
 
 class FirebaseRealtimeManager(
+    private val roomCodeProvider: () -> String? = { null },
     private val sessionKeyProvider: () -> SecretKey?
 ) {
     private val TAG = "FirebaseRealtime"
@@ -43,9 +46,17 @@ class FirebaseRealtimeManager(
     @Volatile
     private var myUid: String? = null
     private var tokenTimestamp: Long = 0
+    private val authMutex = Mutex()
 
     private val seenMessageIds = ConcurrentHashMap.newKeySet<String>()
-    private val startTime = System.currentTimeMillis()
+
+    private fun getRoomMessagesUrl(token: String): String {
+        val dbUrl = CloudConfig.FIREBASE_DATABASE_URL.trimEnd('/')
+        val roomCode = roomCodeProvider()?.trim()?.lowercase().let {
+            if (it.isNullOrBlank()) "default_couple" else it
+        }
+        return "$dbUrl/rooms/$roomCode/messages.json?auth=$token"
+    }
 
     fun start() {
         if (!CloudConfig.isFirebaseConfigured()) {
@@ -75,54 +86,55 @@ class FirebaseRealtimeManager(
         }
     }
 
-    private suspend fun ensureAuthenticated(): Boolean = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis()
-        if (idToken != null && (now - tokenTimestamp) < 50 * 60 * 1000) {
-            return@withContext true
-        }
-
-        val apiKey = CloudConfig.FIREBASE_API_KEY
-        val email = CloudConfig.ACTIVE_EMAIL
-        val password = CloudConfig.ACTIVE_PASSWORD
-
-        if (apiKey.isBlank() || email.isBlank() || password.isBlank()) {
-            Log.w(TAG, "Email/Password Firebase belum diatur di CloudConfig")
-            return@withContext false
-        }
-
-        try {
-            val url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$apiKey"
-            val reqBody = JSONObject().apply {
-                put("email", email)
-                put("password", password)
-                put("returnSecureToken", true)
-            }.toString().toRequestBody("application/json".toMediaType())
-
-            val request = Request.Builder().url(url).post(reqBody).build()
-            client.newCall(request).execute().use { response ->
-                val respStr = response.body?.string() ?: return@withContext false
-                if (response.isSuccessful) {
-                    val json = JSONObject(respStr)
-                    idToken = json.getString("idToken")
-                    myUid = json.getString("localId")
-                    tokenTimestamp = System.currentTimeMillis()
-                    Log.d(TAG, "Login Firebase Auth berhasil. UID: $myUid")
-                    true
-                } else {
-                    Log.e(TAG, "Login Firebase Auth gagal: $respStr")
-                    false
-                }
+    private suspend fun ensureAuthenticated(): Boolean = authMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            if (idToken != null && (now - tokenTimestamp) < 50 * 60 * 1000) {
+                return@withContext true
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception saat login Firebase Auth: ${e.message}")
-            false
+
+            val apiKey = CloudConfig.FIREBASE_API_KEY
+            val email = CloudConfig.ACTIVE_EMAIL
+            val password = CloudConfig.ACTIVE_PASSWORD
+
+            if (apiKey.isBlank() || email.isBlank() || password.isBlank()) {
+                Log.w(TAG, "Email/Password Firebase belum diatur di CloudConfig")
+                return@withContext false
+            }
+
+            try {
+                val url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$apiKey"
+                val reqBody = JSONObject().apply {
+                    put("email", email)
+                    put("password", password)
+                    put("returnSecureToken", true)
+                }.toString().toRequestBody("application/json".toMediaType())
+
+                val request = Request.Builder().url(url).post(reqBody).build()
+                client.newCall(request).execute().use { response ->
+                    val respStr = response.body?.string() ?: return@withContext false
+                    if (response.isSuccessful) {
+                        val json = JSONObject(respStr)
+                        idToken = json.getString("idToken")
+                        myUid = json.getString("localId")
+                        tokenTimestamp = System.currentTimeMillis()
+                        Log.d(TAG, "Login Firebase Auth berhasil. UID: $myUid")
+                        true
+                    } else {
+                        Log.e(TAG, "Login Firebase Auth gagal: $respStr")
+                        false
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception saat login Firebase Auth: ${e.message}")
+                false
+            }
         }
     }
 
     private suspend fun listenToMessagesStream() = withContext(Dispatchers.IO) {
         val token = idToken ?: return@withContext
-        val dbUrl = CloudConfig.FIREBASE_DATABASE_URL.trimEnd('/')
-        val url = "$dbUrl/messages.json?auth=$token"
+        val url = getRoomMessagesUrl(token)
 
         val request = Request.Builder()
             .url(url)
@@ -169,17 +181,13 @@ class FirebaseRealtimeManager(
                     // Pesan baru tunggal
                     processMessageItem(dataObj)
                 } else {
-                    // Initial dump dari path "/" berisi daftar pesan
+                    // Initial dump dari kamar berisi daftar pesan (termasuk yang dikirim saat offline)
                     val keys = dataObj.keys()
                     while (keys.hasNext()) {
                         val k = keys.next()
                         val item = dataObj.optJSONObject(k)
                         if (item != null && item.has("payload")) {
-                            val createdAt = item.optLong("createdAt", 0L)
-                            // Lewati pesan masa lampau yang dibuat sebelum aplikasi dijalankan
-                            if (createdAt >= startTime) {
-                                processMessageItem(item)
-                            }
+                            processMessageItem(item)
                         }
                     }
                 }
@@ -199,6 +207,9 @@ class FirebaseRealtimeManager(
         val unwrapped = SessionCryptoEngine.unwrapWireEnvelope(payload, sessionKeyProvider()) ?: return
         val packet = TetherPacket.fromJson(unwrapped) ?: return
 
+        if (seenMessageIds.size > 1000) {
+            seenMessageIds.clear()
+        }
         if (seenMessageIds.add(packet.id)) {
             scope.launch {
                 _incomingPackets.emit(packet)
@@ -211,8 +222,7 @@ class FirebaseRealtimeManager(
         ensureAuthenticated()
         val token = idToken ?: return@withContext false
 
-        val dbUrl = CloudConfig.FIREBASE_DATABASE_URL.trimEnd('/')
-        val url = "$dbUrl/messages.json?auth=$token"
+        val url = getRoomMessagesUrl(token)
 
         val wirePayload = SessionCryptoEngine.wrapWireEnvelope(packet.toJson(), sessionKeyProvider())
         val msgPayload = JSONObject().apply {

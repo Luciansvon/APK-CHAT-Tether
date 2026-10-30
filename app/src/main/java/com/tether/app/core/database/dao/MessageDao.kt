@@ -15,6 +15,9 @@ interface MessageDao {
     @Query("SELECT MAX(lamportTimestamp) FROM messages")
     suspend fun getLatestLamportTimestamp(): Long?
 
+    @Query("SELECT * FROM messages WHERE senderId = 'ME' AND isDelivered = 0 ORDER BY localTimestamp ASC LIMIT 20")
+    suspend fun getUndeliveredMessages(): List<MessageEntity>
+
     // Idempotensi: Jika pesan dengan ID sama sudah ada, abaikan tanpa menimpa
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMessage(message: MessageEntity): Long

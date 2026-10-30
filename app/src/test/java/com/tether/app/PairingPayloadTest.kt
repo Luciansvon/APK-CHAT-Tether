@@ -11,7 +11,7 @@ class PairingPayloadTest {
     fun testPairingPayloadRoundtrip() {
         val payload = PairingPayload(
             partnerId = "user_892341",
-            partnerName = "Bima",
+            partnerName = "Alex",
             publicKey = "ed25519_pub_key_secure_xyz",
             timestamp = 1793320000000L
         )

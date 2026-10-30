@@ -62,8 +62,8 @@ import java.util.Locale
 fun ChatScreen(
     viewModel: ChatViewModel,
     onNavigateToTouchpad: () -> Unit,
-    onNavigateToCoupons: () -> Unit,
-    onNavigateToPairing: () -> Unit
+    onNavigateToCoupons: () -> Unit = {},
+    onNavigateToPairing: () -> Unit = {}
 ) {
     val messages by viewModel.messages.collectAsState()
     val partnerProfile by viewModel.partnerProfile.collectAsState()
@@ -95,9 +95,9 @@ fun ChatScreen(
 
     if (showEditProfileDialog) {
         EditProfileDialog(
-            initialPartnerName = partnerProfile?.partnerName ?: "Lina",
-            initialMyName = partnerProfile?.myName ?: "Bima",
-            initialMood = partnerProfile?.moodCycle ?: "Luteal",
+            initialPartnerName = partnerProfile?.partnerName ?: "Pasangan",
+            initialMyName = partnerProfile?.myName ?: "Saya",
+            initialMood = partnerProfile?.moodCycle ?: "Happy",
             initialAvatarUri = partnerProfile?.partnerAvatarUri,
             onDismiss = { showEditProfileDialog = false },
             onSave = { pName, mName, pMood, pAvatar ->

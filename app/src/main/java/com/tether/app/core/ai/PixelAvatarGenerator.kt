@@ -109,8 +109,7 @@ class PixelAvatarGenerator(
     private fun generateFallbackPreset(prompt: String): String? {
         val isMale = prompt.contains("cowok", ignoreCase = true) ||
                 prompt.contains("boy", ignoreCase = true) ||
-                prompt.contains("pria", ignoreCase = true) ||
-                prompt.contains("bima", ignoreCase = true)
+                prompt.contains("pria", ignoreCase = true)
 
         val palette = if (isMale) {
             mapOf(

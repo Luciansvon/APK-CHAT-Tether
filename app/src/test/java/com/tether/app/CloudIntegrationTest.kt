@@ -26,17 +26,17 @@ class CloudIntegrationTest {
         // Set Firebase valid
         CloudConfig.FIREBASE_API_KEY = "AIzaSyTestApiKey12345"
         CloudConfig.FIREBASE_DATABASE_URL = "https://tether-couple-test-rtdb.asia-southeast1.firebasedatabase.app"
-        CloudConfig.USER_1_EMAIL = "bima@tether.local"
-        CloudConfig.USER_1_PASSWORD = "password_bima"
-        CloudConfig.USER_2_EMAIL = "lina@tether.local"
-        CloudConfig.USER_2_PASSWORD = "password_lina"
+        CloudConfig.USER_1_EMAIL = "partner1@tether.local"
+        CloudConfig.USER_1_PASSWORD = "password_p1"
+        CloudConfig.USER_2_EMAIL = "partner2@tether.local"
+        CloudConfig.USER_2_PASSWORD = "password_p2"
         CloudConfig.IS_PRIMARY_USER = true
 
         assertTrue(CloudConfig.isFirebaseConfigured())
-        assertEquals("bima@tether.local", CloudConfig.ACTIVE_EMAIL)
+        assertEquals("partner1@tether.local", CloudConfig.ACTIVE_EMAIL)
 
         CloudConfig.IS_PRIMARY_USER = false
-        assertEquals("lina@tether.local", CloudConfig.ACTIVE_EMAIL)
+        assertEquals("partner2@tether.local", CloudConfig.ACTIVE_EMAIL)
 
         // Set Drive valid
         CloudConfig.DRIVE_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbTest123/exec"
@@ -119,5 +119,22 @@ class CloudIntegrationTest {
 
         assertTrue(gasResponse.getBoolean("ok"))
         assertEquals("https://lh3.googleusercontent.com/d/1aBcDeFgHiJkLmNoP", gasResponse.getString("url"))
+    }
+
+    @Test
+    fun testRoomSecretKeyDerivationAndE2EEMatch() {
+        val roomCode = "KITA-1234"
+        val passcode = "rahasia123"
+
+        // Kedua pasangan menghasilkan kunci dari kode kamar & sandi berdua
+        val user1Key = SessionCryptoEngine.deriveRoomAesKey(roomCode, passcode)
+        val user2Key = SessionCryptoEngine.deriveRoomAesKey("kita-1234", "rahasia123") // case-insensitive room code
+
+        val msgJson = "{\"id\":\"m1\",\"type\":\"TEXT\",\"senderId\":\"ME\",\"content\":\"Hai sayang, kangen banget ❤️\",\"lamportTimestamp\":1}"
+        val encryptedEnvelope = SessionCryptoEngine.wrapWireEnvelope(msgJson, user1Key)
+
+        assertFalse(encryptedEnvelope.contains("Hai sayang"))
+        val decrypted = SessionCryptoEngine.unwrapWireEnvelope(encryptedEnvelope, user2Key)
+        assertEquals(msgJson, decrypted)
     }
 }

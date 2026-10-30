@@ -93,6 +93,15 @@ object SessionCryptoEngine {
         }
     }
 
+    fun deriveRoomAesKey(roomCode: String, passcode: String): SecretKey {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update("TETHER_ROOM_E2EE_V1".toByteArray(Charsets.UTF_8))
+        digest.update(roomCode.trim().lowercase().toByteArray(Charsets.UTF_8))
+        digest.update(passcode.trim().toByteArray(Charsets.UTF_8))
+        val keyMaterial = digest.digest()
+        return SecretKeySpec(keyMaterial, "AES")
+    }
+
     /**
      * Membungkus payload JSON ke dalam amplop E2EE AES-256-GCM saat sessionKey aktif.
      */

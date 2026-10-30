@@ -38,12 +38,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.tether.app.R
 import com.tether.app.core.ai.PixelAvatarGenerator
+import com.tether.app.core.security.KeystoreManager
 import com.tether.app.core.designsystem.theme.PixelDarkInk
 import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelHeartRed
@@ -479,7 +481,18 @@ fun EditProfileDialog(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    val currentRoom = remember { KeystoreManager.getRoomCode(context)?.uppercase() ?: "-" }
+                    Text(
+                        text = "KAMAR BERDUA: $currentRoom",
+                        fontFamily = PixelFont,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PixelSecondaryInk,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // Tombol Aksi (Batal & Simpan)
                     Row(

@@ -8,8 +8,8 @@ data class PartnerProfileEntity(
     @PrimaryKey
     val partnerId: String,
     val partnerName: String,
-    val myName: String = "Bima",
-    val moodCycle: String = "Luteal",
+    val myName: String = "Saya",
+    val moodCycle: String = "Happy",
     val publicKey: String = "",
     val p2pIpAddress: String? = null,
     val isPaired: Boolean = false,

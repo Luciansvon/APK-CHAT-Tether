@@ -97,7 +97,7 @@ fun ScrapbookVaultSheet(
                 privBytes.fill(0)
                 PairingPayload(
                     partnerId = KeystoreManager.getOrCreateDevicePartnerId(context),
-                    partnerName = "Bima",
+                    partnerName = "Saya",
                     publicKey = pubB64,
                     timestamp = System.currentTimeMillis()
                 )

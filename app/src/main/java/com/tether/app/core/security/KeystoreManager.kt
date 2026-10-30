@@ -23,6 +23,30 @@ object KeystoreManager {
     private const val KEY_IDENTITY_PUB = "identity_ec_pub"
     private const val KEY_ENC_IDENTITY_PRIV = "enc_identity_ec_priv"
     private const val KEY_IV_IDENTITY_PRIV = "iv_identity_ec_priv"
+    private const val KEY_ROOM_CODE = "room_code"
+    private const val KEY_ROOM_PASSCODE = "room_passcode"
+
+    fun saveRoomConfig(context: Context, roomCode: String, passcode: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_ROOM_CODE, roomCode.trim().lowercase())
+            .putString(KEY_ROOM_PASSCODE, passcode.trim())
+            .commit()
+    }
+
+    fun getRoomCode(context: Context): String? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_ROOM_CODE, null)
+    }
+
+    fun getRoomPasscode(context: Context): String? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_ROOM_PASSCODE, null)
+    }
+
+    fun isRoomConfigured(context: Context): Boolean {
+        return !getRoomCode(context).isNullOrBlank() && !getRoomPasscode(context).isNullOrBlank()
+    }
 
     private fun getOrCreateMasterSecretKey(context: Context): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -76,8 +100,9 @@ object KeystoreManager {
                 val iv = Base64.decode(ivString, Base64.NO_WRAP)
                 cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(128, iv))
                 cipher.doFinal(Base64.decode(encryptedPass, Base64.NO_WRAP))
-            } catch (_: Exception) {
-                generateAndStorePassphrase(prefs, secretKey)
+            } catch (e: Exception) {
+                // Jangan menimpa passphrase yang sudah ada karena akan merusak database SQLCipher lama
+                throw IllegalStateException("Gagal mendekripsi passphrase database SQLCipher: ${e.message}", e)
             }
         } else {
             return generateAndStorePassphrase(prefs, secretKey)
