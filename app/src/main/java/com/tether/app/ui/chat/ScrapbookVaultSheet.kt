@@ -83,7 +83,9 @@ fun ScrapbookVaultSheet(
     val coroutineScope = rememberCoroutineScope()
     val db = remember(context) { TetherDatabase.getInstance(context) }
     val coupons by db.couponDao().getAllCouponsFlow().collectAsState(initial = emptyList())
-    val messages by db.messageDao().getMediaMessagesFlow(100).collectAsState(initial = emptyList())
+    var mediaLimit by remember { mutableIntStateOf(100) }
+    val messages by remember(mediaLimit) { db.messageDao().getMediaMessagesFlow(mediaLimit) }
+        .collectAsState(initial = emptyList())
 
     // 0: Kupon, 1: Memori (Polaroid & Kaset), 2: Kamar & Kamera
     var selectedTab by remember { mutableIntStateOf(initialTab) }
@@ -375,6 +377,21 @@ fun ScrapbookVaultSheet(
                                         duration = msg.duration ?: "0:10",
                                         isPlaying = playingAudioId == msg.id,
                                         onPlayClick = { onToggleAudio?.invoke(msg.id) }
+                                    )
+                                }
+                            }
+
+                            if (polaroidAndAudioMessages.size >= mediaLimit && mediaLimit < 1000) {
+                                item {
+                                    Text(
+                                        text = "[ MUAT LEBIH BANYAK ]",
+                                        fontFamily = PixelFont,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PixelSecondaryInk,
+                                        modifier = Modifier
+                                            .clickable { mediaLimit = (mediaLimit + 100).coerceAtMost(1000) }
+                                            .padding(vertical = 8.dp)
                                     )
                                 }
                             }

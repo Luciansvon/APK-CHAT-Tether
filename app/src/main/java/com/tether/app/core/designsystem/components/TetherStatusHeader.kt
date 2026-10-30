@@ -1,7 +1,9 @@
 package com.tether.app.core.designsystem.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -265,6 +267,11 @@ fun TetherStatusHeader(
                 )
             }
             // XP Progress Track
+            val animatedProgress by animateFloatAsState(
+                targetValue = levelProgressRatio.coerceIn(0.02f, 1f),
+                animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+                label = "xpProgressBar"
+            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -273,7 +280,7 @@ fun TetherStatusHeader(
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(levelProgressRatio.coerceIn(0.02f, 1f))
+                        .fillMaxWidth(animatedProgress)
                         .height(3.dp)
                         .background(PixelHeartRed)
                 )

@@ -21,7 +21,7 @@ data class MessageEntity(
     val duration: String? = null, // Untuk whisper voice note
     val lamportTimestamp: Long,   // Lamport Clock untuk mengurutkan pesan lintas jaringan
     val localTimestamp: Long,
-    val isDelivered: Boolean = true,
+    val isDelivered: Boolean = false,
     val isRead: Boolean = true,
     val isFoggy: Boolean = false,
     val rotation: Float = 0.0f

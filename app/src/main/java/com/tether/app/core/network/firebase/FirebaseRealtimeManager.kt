@@ -170,7 +170,7 @@ class FirebaseRealtimeManager(
         }
     }
 
-    private fun handleSseData(jsonStr: String) {
+    private suspend fun handleSseData(jsonStr: String) {
         try {
             val root = JSONObject(jsonStr)
             val path = root.optString("path", "")
@@ -197,14 +197,14 @@ class FirebaseRealtimeManager(
         }
     }
 
-    private fun processMessageItem(msgObj: JSONObject) {
+    private suspend fun processMessageItem(msgObj: JSONObject) {
         val senderUid = msgObj.optString("senderUid", "")
         if (senderUid == myUid) return // Abaikan pesan dari diri sendiri
 
         val payload = msgObj.optString("payload", "")
         if (payload.isBlank()) return
 
-        val unwrapped = SessionCryptoEngine.unwrapWireEnvelope(payload, sessionKeyProvider()) ?: return
+        val unwrapped = SessionCryptoEngine.unwrapWireEnvelopeSerialized(payload, sessionKeyProvider()) ?: return
         val packet = TetherPacket.fromJson(unwrapped) ?: return
 
         if (seenMessageIds.size > 1000) {
@@ -224,7 +224,7 @@ class FirebaseRealtimeManager(
 
         val url = getRoomMessagesUrl(token)
 
-        val wirePayload = SessionCryptoEngine.wrapWireEnvelope(packet.toJson(), sessionKeyProvider())
+        val wirePayload = SessionCryptoEngine.wrapWireEnvelopeSerialized(packet.toJson(), sessionKeyProvider())
         val msgPayload = JSONObject().apply {
             put("senderUid", myUid)
             put("payload", wirePayload)

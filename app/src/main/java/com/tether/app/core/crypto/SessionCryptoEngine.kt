@@ -1,6 +1,8 @@
 package com.tether.app.core.crypto
 
 import org.json.JSONObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
@@ -19,6 +21,9 @@ object SessionCryptoEngine {
     private const val GCM_TAG_BITS = 128
     private const val GCM_IV_BYTES = 12
     private const val ENVELOPE_VERSION = 1
+
+    // Enkripsi/dekripsi diserialkan agar lonjakan memori Cipher tidak bertumpuk saat foto besar masuk bersamaan.
+    private val cryptoDispatcher = Dispatchers.IO.limitedParallelism(1)
 
     fun generateEphemeralKeyPair(): Pair<ByteArray, ByteArray> {
         val kpg = KeyPairGenerator.getInstance("EC")
@@ -135,6 +140,12 @@ object SessionCryptoEngine {
     fun encodeBase64(bytes: ByteArray): String {
         return Base64.getEncoder().encodeToString(bytes)
     }
+
+    suspend fun wrapWireEnvelopeSerialized(plainJson: String, sessionKey: SecretKey?): String =
+        withContext(cryptoDispatcher) { wrapWireEnvelope(plainJson, sessionKey) }
+
+    suspend fun unwrapWireEnvelopeSerialized(wireLine: String, sessionKey: SecretKey?): String? =
+        withContext(cryptoDispatcher) { unwrapWireEnvelope(wireLine, sessionKey) }
 
     fun decodeBase64(str: String): ByteArray {
         return Base64.getDecoder().decode(str.trim())

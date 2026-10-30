@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tether.app.R
 import com.tether.app.core.designsystem.components.FavorCouponTicket
+import com.tether.app.core.designsystem.components.LevelUpDialog
 import com.tether.app.core.designsystem.components.PolaroidFrame
 import com.tether.app.core.designsystem.components.ScrapbookBottomBar
 import com.tether.app.core.designsystem.components.TetherStatusHeader
@@ -78,6 +80,7 @@ fun ChatScreen(
     val messages by viewModel.messages.collectAsState()
     val partnerProfile by viewModel.partnerProfile.collectAsState()
     val coupleLevel by viewModel.coupleLevel.collectAsState()
+    val levelUpEvent by viewModel.levelUpEvent.collectAsState()
     val inputText by viewModel.inputText.collectAsState()
     val isP2pActive by viewModel.p2pManager.isP2pConnected.collectAsState()
     val isFirebaseActive by viewModel.firebaseManager.isConnected.collectAsState()
@@ -90,6 +93,7 @@ fun ChatScreen(
     }
     val isConnected = isP2pActive || isFirebaseActive || isRelayActive
     val playingAudioId by viewModel.playingAudioId.collectAsState()
+    val canLoadOlder by viewModel.canLoadOlderMessages.collectAsState()
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showVaultSheet by remember { mutableStateOf(false) }
     var vaultInitialTab by remember { mutableIntStateOf(0) }
@@ -106,11 +110,10 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(messages.size) {
+    LaunchedEffect(messages.lastOrNull()?.id) {
         if (messages.isNotEmpty()) {
-            // Item 0 adalah WashiRibbon header, sehingga indeks item pesan terakhir = messages.size
-            val targetIndex = messages.size.coerceAtLeast(0)
-            listState.animateScrollToItem(targetIndex)
+            // Item 0 adalah header, sehingga indeks item pesan terakhir = messages.size
+            listState.animateScrollToItem(messages.size)
         }
     }
 
@@ -153,6 +156,13 @@ fun ChatScreen(
             onDismiss = { showVaultSheet = false }
         )
     }
+
+    LevelUpDialog(
+        visible = levelUpEvent != null,
+        level = levelUpEvent?.level ?: 1,
+        title = levelUpEvent?.title ?: "",
+        onDismiss = { viewModel.dismissLevelUp() }
+    )
 
     Scaffold(
         topBar = {
@@ -204,10 +214,26 @@ fun ChatScreen(
         ) {
             // Pita Tanggal Pixel
                 item {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         WashiRibbon(
                             text = "◆ 24 OKTOBER — HARI KE-412 BERSAMA ◆"
                         )
+                        if (canLoadOlder) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "[ MUAT PESAN LAMA ]",
+                                fontFamily = PixelFont,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PixelSecondaryInk,
+                                modifier = Modifier
+                                    .clickable { viewModel.loadOlderMessages() }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
                     }
                 }
 
@@ -279,7 +305,8 @@ fun ChatScreen(
                         ) {
                             ChatBubbleMe(
                                 text = "Bagus banget! Udah aku simpen di daftar kencan kita yaa.",
-                                time = "14:15"
+                                time = "14:15",
+                                isDelivered = true
                             )
                         }
                     }
@@ -327,7 +354,12 @@ fun ChatScreen(
                         "TEXT" -> {
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = bubbleAlignment) {
                                 if (message.senderId == "ME") {
-                                    ChatBubbleMe(text = message.content, time = timeStr, caption = message.caption)
+                                    ChatBubbleMe(
+                                        text = message.content,
+                                        time = timeStr,
+                                        caption = message.caption,
+                                        isDelivered = message.isDelivered
+                                    )
                                 } else {
                                     ChatBubbleThem(text = message.content, time = timeStr, caption = message.caption)
                                 }
@@ -496,7 +528,8 @@ fun ChatBubbleThem(
 fun ChatBubbleMe(
     text: String,
     time: String,
-    caption: String? = null
+    caption: String? = null,
+    isDelivered: Boolean = false
 ) {
     Box(
         modifier = Modifier
@@ -533,7 +566,7 @@ fun ChatBubbleMe(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = time,
+                text = if (isDelivered) "$time  ✓✓" else "$time  ✓",
                 fontFamily = PixelFont,
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,

@@ -32,7 +32,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -46,6 +48,9 @@ import java.io.FileOutputStream
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 import javax.crypto.SecretKey
+
+private const val MESSAGE_PAGE_SIZE = 100
+private const val MAX_MESSAGE_WINDOW = 1000
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val db = TetherDatabase.getInstance(application)
@@ -76,15 +81,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRoomConfigured: MutableStateFlow<Boolean> = MutableStateFlow(KeystoreManager.isRoomConfigured(application))
     val isRoomConfigured: StateFlow<Boolean> = _isRoomConfigured.asStateFlow()
 
-    // shortcut: chat hanya memuat 100 pesan terakhir; tambah paging saat riwayat lama dibutuhkan.
-    val messages: StateFlow<List<MessageEntity>> = messageDao.getRecentMessagesFlow(100)
+    // shortcut: jendela pesan dibatasi 1000; pindah ke Paging3 kalau riwayat lebih besar.
+    private val messageWindow = MutableStateFlow(MESSAGE_PAGE_SIZE)
+
+    val messages: StateFlow<List<MessageEntity>> = messageWindow
+        .flatMapLatest { messageDao.getRecentMessagesFlow(it) }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val canLoadOlderMessages: StateFlow<Boolean> = combine(messages, messageWindow) { list, window ->
+        window < MAX_MESSAGE_WINDOW && list.size >= window
+    }.stateIn(viewModelScope, SharingStarted.Lazily, false)
+
+    fun loadOlderMessages() {
+        messageWindow.update { (it + MESSAGE_PAGE_SIZE).coerceAtMost(MAX_MESSAGE_WINDOW) }
+    }
 
     val partnerProfile: StateFlow<PartnerProfileEntity?> = profileDao.getProfileFlow()
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     val coupleLevel: StateFlow<CoupleLevelEntity?> = coupleLevelDao.getLevelFlow()
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+    data class LevelUpInfo(val level: Int, val title: String)
+
+    private val _levelUpEvent = MutableStateFlow<LevelUpInfo?>(null)
+    val levelUpEvent: StateFlow<LevelUpInfo?> = _levelUpEvent.asStateFlow()
+
+    fun dismissLevelUp() {
+        _levelUpEvent.value = null
+    }
 
     private val _isGeneratingAvatar = MutableStateFlow(false)
     val isGeneratingAvatar = _isGeneratingAvatar.asStateFlow()
@@ -317,6 +342,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             lastInteractionTimestamp = System.currentTimeMillis()
         )
         coupleLevelDao.saveLevel(updated)
+
+        if (targetLevel > current.currentLevel) {
+            hapticEngine.playTugHaptic()
+            soundManager.playSendSound()
+            _levelUpEvent.value = LevelUpInfo(targetLevel, updated.title())
+        }
     }
 
     fun generateAiPixelAvatar(prompt: String, isForPartner: Boolean) {
@@ -414,17 +445,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun dispatchPacket(packet: TetherPacket): Boolean {
         val peerIp = p2pManager.connectedPeerIp.value
         return if (p2pManager.isP2pConnected.value && peerIp != null) {
-            val ok = p2pManager.sendPacket(peerIp, packet)
-            messageDao.updateDeliveredStatus(packet.id, ok)
-            ok
+            p2pManager.sendPacket(peerIp, packet)
         } else if (firebaseManager.isConnected.value) {
-            val ok = firebaseManager.sendPacket(packet)
-            messageDao.updateDeliveredStatus(packet.id, ok)
-            ok
+            firebaseManager.sendPacket(packet)
         } else if (relayManager.isRelayConnected.value) {
-            val ok = relayManager.sendPacket(packet)
-            messageDao.updateDeliveredStatus(packet.id, ok)
-            ok
+            relayManager.sendPacket(packet)
         } else {
             false
         }
@@ -800,6 +825,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun handleIncomingPacket(packet: TetherPacket) {
+        if (packet.type == "DELIVERED_ACK") {
+            messageDao.updateDeliveredStatus(packet.content, true)
+            return
+        }
+
         val updatedClock = currentLamportClock.updateAndGet { current ->
             maxOf(current, packet.lamportTimestamp) + 1L
         }
@@ -830,6 +860,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     duration = packet.duration,
                     lamportTimestamp = updatedClock,
                     localTimestamp = System.currentTimeMillis(),
+                    isDelivered = true,
                     isFoggy = packet.type == "POLAROID",
                     rotation = (-10..10).random() / 10f
                 )
@@ -850,7 +881,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     caption = packet.caption,
                     duration = packet.duration,
                     lamportTimestamp = updatedClock,
-                    localTimestamp = System.currentTimeMillis()
+                    localTimestamp = System.currentTimeMillis(),
+                    isDelivered = true
                 )
                 messageDao.insertMessage(msg)
                 hapticEngine.playHeartbeatResonance()
@@ -877,7 +909,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     caption = packet.caption,
                     duration = packet.duration,
                     lamportTimestamp = updatedClock,
-                    localTimestamp = System.currentTimeMillis()
+                    localTimestamp = System.currentTimeMillis(),
+                    isDelivered = true
                 )
                 messageDao.insertMessage(msg)
             }
@@ -891,7 +924,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     caption = packet.caption,
                     duration = packet.duration,
                     lamportTimestamp = updatedClock,
-                    localTimestamp = System.currentTimeMillis()
+                    localTimestamp = System.currentTimeMillis(),
+                    isDelivered = true
                 )
                 messageDao.insertMessage(msg)
                 hapticEngine.playHeartbeatResonance()
@@ -907,7 +941,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     content = packet.content,
                     caption = packet.caption ?: "Kupon Kasih Sayang Diklaim",
                     lamportTimestamp = updatedClock,
-                    localTimestamp = now
+                    localTimestamp = now,
+                    isDelivered = true
                 )
                 messageDao.insertMessage(msg)
                 hapticEngine.playTugHaptic()
@@ -927,6 +962,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }
+        }
+
+        if (packet.type != "HAPTIC_TOUCH" && packet.type != "HEARTBEAT") {
+            dispatchPacket(
+                TetherPacket(
+                    id = UUID.randomUUID().toString(),
+                    type = "DELIVERED_ACK",
+                    senderId = "ME",
+                    content = packet.id,
+                    lamportTimestamp = updatedClock
+                )
+            )
         }
     }
 

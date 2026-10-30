@@ -96,7 +96,7 @@ class TetherP2pManager(
                     val reader = BufferedReader(InputStreamReader(client.getInputStream(), Charsets.UTF_8))
                     val wireLine = reader.readLine()
                     if (wireLine != null) {
-                        val unwrappedJson = SessionCryptoEngine.unwrapWireEnvelope(
+                        val unwrappedJson = SessionCryptoEngine.unwrapWireEnvelopeSerialized(
                             wireLine = wireLine,
                             sessionKey = sessionKeyProvider()
                         )
@@ -120,7 +120,7 @@ class TetherP2pManager(
 
     suspend fun sendPacket(peerIp: String, packet: TetherPacket): Boolean = withContext(Dispatchers.IO) {
         try {
-            val wirePayload = SessionCryptoEngine.wrapWireEnvelope(
+            val wirePayload = SessionCryptoEngine.wrapWireEnvelopeSerialized(
                 plainJson = packet.toJson(),
                 sessionKey = sessionKeyProvider()
             )

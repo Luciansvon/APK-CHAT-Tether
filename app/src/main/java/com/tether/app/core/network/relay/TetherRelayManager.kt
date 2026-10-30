@@ -68,18 +68,18 @@ class TetherRelayManager(
                     }
 
                     override fun onMessage(ws: WebSocket, text: String) {
-                        try {
-                            val unwrapped = SessionCryptoEngine.unwrapWireEnvelope(text, sessionKeyProvider())
-                            if (unwrapped != null) {
-                                val packet = TetherPacket.fromJson(unwrapped)
-                                if (packet != null) {
-                                    scope.launch {
+                        scope.launch {
+                            try {
+                                val unwrapped = SessionCryptoEngine.unwrapWireEnvelopeSerialized(text, sessionKeyProvider())
+                                if (unwrapped != null) {
+                                    val packet = TetherPacket.fromJson(unwrapped)
+                                    if (packet != null) {
                                         _incomingPackets.emit(packet)
                                     }
                                 }
+                            } catch (e: Exception) {
+                                Log.e("TetherRelay", "Error parsing incoming packet: ${e.message}")
                             }
-                        } catch (e: Exception) {
-                            Log.e("TetherRelay", "Error parsing incoming packet: ${e.message}")
                         }
                     }
 
@@ -99,10 +99,10 @@ class TetherRelayManager(
         }
     }
 
-    fun sendPacket(packet: TetherPacket): Boolean {
+    suspend fun sendPacket(packet: TetherPacket): Boolean {
         val ws = webSocket
         if (ws != null && _isRelayConnected.value) {
-            val wirePayload = SessionCryptoEngine.wrapWireEnvelope(packet.toJson(), sessionKeyProvider())
+            val wirePayload = SessionCryptoEngine.wrapWireEnvelopeSerialized(packet.toJson(), sessionKeyProvider())
             return ws.send(wirePayload)
         }
         return false
