@@ -26,7 +26,17 @@ class CloudIntegrationTest {
         // Set Firebase valid
         CloudConfig.FIREBASE_API_KEY = "AIzaSyTestApiKey12345"
         CloudConfig.FIREBASE_DATABASE_URL = "https://tether-couple-test-rtdb.asia-southeast1.firebasedatabase.app"
+        CloudConfig.USER_1_EMAIL = "bima@tether.local"
+        CloudConfig.USER_1_PASSWORD = "password_bima"
+        CloudConfig.USER_2_EMAIL = "lina@tether.local"
+        CloudConfig.USER_2_PASSWORD = "password_lina"
+        CloudConfig.IS_PRIMARY_USER = true
+
         assertTrue(CloudConfig.isFirebaseConfigured())
+        assertEquals("bima@tether.local", CloudConfig.ACTIVE_EMAIL)
+
+        CloudConfig.IS_PRIMARY_USER = false
+        assertEquals("lina@tether.local", CloudConfig.ACTIVE_EMAIL)
 
         // Set Drive valid
         CloudConfig.DRIVE_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbTest123/exec"

@@ -252,7 +252,7 @@ fun TetherTugOverlayView(
                         Spacer(modifier = Modifier.height(2.dp))
 
                         Text(
-                            text = "Getaran detak terhubung • P2P 0-Data",
+                            text = "Getaran detak terhubung • Langsung",
                             fontFamily = PixelFont,
                             fontSize = 8.5.sp,
                             color = PixelMutedInk

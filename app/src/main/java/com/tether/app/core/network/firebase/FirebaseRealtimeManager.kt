@@ -82,8 +82,8 @@ class FirebaseRealtimeManager(
         }
 
         val apiKey = CloudConfig.FIREBASE_API_KEY
-        val email = CloudConfig.FIREBASE_EMAIL
-        val password = CloudConfig.FIREBASE_PASSWORD
+        val email = CloudConfig.ACTIVE_EMAIL
+        val password = CloudConfig.ACTIVE_PASSWORD
 
         if (apiKey.isBlank() || email.isBlank() || password.isBlank()) {
             Log.w(TAG, "Email/Password Firebase belum diatur di CloudConfig")

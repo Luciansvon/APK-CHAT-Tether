@@ -159,7 +159,7 @@ fun PairingScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "Pindai kode ini pada perangkat pasanganmu untuk menghubungkan Tether P2P tanpa akun publik.",
+                text = "Pindai kode ini pada perangkat pasanganmu untuk menyambungkan benang hati berdua tanpa akun publik.",
                 fontFamily = PixelFont,
                 fontSize = 11.sp,
                 color = PixelSecondaryInk,

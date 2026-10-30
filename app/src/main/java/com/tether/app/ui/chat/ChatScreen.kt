@@ -74,9 +74,8 @@ fun ChatScreen(
     val isRelayActive by viewModel.relayManager.isRelayConnected.collectAsState()
 
     val connectionLabel = when {
-        isP2pActive -> "P2P 0-Data"
-        isFirebaseActive -> "Firebase Cloud"
-        isRelayActive -> "Online Cloud"
+        isP2pActive -> "Langsung"
+        isFirebaseActive || isRelayActive -> "Tersambung"
         else -> "Standby"
     }
     val isConnected = isP2pActive || isFirebaseActive || isRelayActive
@@ -197,7 +196,7 @@ fun ChatScreen(
                         ) {
                             PolaroidFrame(
                                 caption = "nanti malem ke sini yuk?",
-                                timestamp = "14:13 • [P2P-DIRECT]",
+                                timestamp = "14:13 • [TERHUBUNG]",
                                 isFoggy = true
                             ) {
                                 // Ilustrasi Pixel Kafe Vektor
