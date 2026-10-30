@@ -86,7 +86,11 @@ object TetherOverlayManager {
             owner.onResume()
             lifecycleOwner = owner
 
-            val container = android.widget.FrameLayout(context.applicationContext)
+            val container = android.widget.FrameLayout(context.applicationContext).apply {
+                setViewTreeLifecycleOwner(owner)
+                setViewTreeViewModelStoreOwner(owner)
+                setViewTreeSavedStateRegistryOwner(owner)
+            }
 
             val composeView = ComposeView(context.applicationContext).apply {
                 setViewCompositionStrategy(androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)

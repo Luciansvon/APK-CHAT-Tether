@@ -18,10 +18,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -34,6 +36,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tether.app.R
@@ -67,6 +70,13 @@ fun ChatScreen(
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showVaultSheet by remember { mutableStateOf(false) }
     var vaultInitialTab by remember { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size)
+        }
+    }
 
     if (showEditProfileDialog) {
         EditProfileDialog(
@@ -147,6 +157,7 @@ fun ChatScreen(
             }
 
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -271,12 +282,22 @@ fun ChatScreen(
                         "TEXT" -> {
                             if (message.senderId == "ME") {
                                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                                    ChatBubbleMe(text = message.content, time = "baru saja")
+                                    ChatBubbleMe(text = message.content, time = "baru saja", caption = message.caption)
                                 }
                             } else {
                                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-                                    ChatBubbleThem(text = message.content, time = "baru saja")
+                                    ChatBubbleThem(text = message.content, time = "baru saja", caption = message.caption)
                                 }
+                            }
+                        }
+                        "SYSTEM" -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                SystemAnnouncementCard(text = message.content)
                             }
                         }
                         "POLAROID" -> {
@@ -328,9 +349,41 @@ fun ChatScreen(
 }
 
 @Composable
+fun SystemAnnouncementCard(
+    text: String
+) {
+    Box {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp)
+                .background(PixelDarkInk)
+        )
+        Box(
+            modifier = Modifier
+                .background(Color(0xFFFFF6D6))
+                .border(1.5.dp, PixelDarkInk)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                fontFamily = PixelFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.5.sp,
+                color = PixelDarkInk,
+                textAlign = TextAlign.Center,
+                lineHeight = 15.sp
+            )
+        }
+    }
+}
+
+@Composable
 fun ChatBubbleThem(
     text: String,
-    time: String
+    time: String,
+    caption: String? = null
 ) {
     Box(modifier = Modifier.widthIn(min = 120.dp, max = 270.dp)) {
         Box(
@@ -346,6 +399,23 @@ fun ChatBubbleThem(
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
             Column(modifier = Modifier.widthIn(min = 96.dp, max = 246.dp)) {
+                if (!caption.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFFFFECEB))
+                            .border(1.dp, PixelDarkInk)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = caption,
+                            fontFamily = PixelFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 8.5.sp,
+                            color = PixelHeartRed
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
                 Text(
                     text = text,
                     fontFamily = PixelFont,
@@ -369,7 +439,8 @@ fun ChatBubbleThem(
 @Composable
 fun ChatBubbleMe(
     text: String,
-    time: String
+    time: String,
+    caption: String? = null
 ) {
     Box(modifier = Modifier.widthIn(min = 120.dp, max = 270.dp)) {
         Box(
@@ -385,6 +456,23 @@ fun ChatBubbleMe(
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
             Column(modifier = Modifier.widthIn(min = 96.dp, max = 246.dp)) {
+                if (!caption.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .background(Color.White)
+                            .border(1.dp, PixelDarkInk)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = caption,
+                            fontFamily = PixelFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 8.5.sp,
+                            color = PixelDarkInk
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
                 Text(
                     text = text,
                     fontFamily = PixelFont,

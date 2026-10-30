@@ -9,8 +9,11 @@ import com.tether.app.core.database.entity.MessageEntity
 import com.tether.app.core.database.entity.PartnerProfileEntity
 import com.tether.app.core.network.model.TetherPacket
 import com.tether.app.core.network.p2p.TetherP2pManager
+import com.tether.app.core.overlay.TetherOverlayManager
 import com.tether.app.core.sensor.HapticResonanceEngine
 import com.tether.app.core.sensor.ProximitySensorManager
+import com.tether.app.domain.command.TetherCommand
+import com.tether.app.domain.command.TetherCommandParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -109,6 +112,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (text.isEmpty()) return
 
         _inputText.value = ""
+
+        if (TetherCommandParser.isCommand(text)) {
+            executeCommand(text)
+            return
+        }
+
         currentLamportClock++
 
         val msg = MessageEntity(
@@ -135,6 +144,178 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         lamportTimestamp = msg.lamportTimestamp
                     )
                 )
+            }
+        }
+    }
+
+    private fun executeCommand(rawText: String) {
+        val command = TetherCommandParser.parse(rawText)
+        viewModelScope.launch {
+            currentLamportClock++
+            when (command) {
+                is TetherCommand.Mood -> {
+                    val current = profileDao.getProfile()
+                    val moodCapitalized = command.mood.replaceFirstChar { it.uppercase() }
+                    if (current != null) {
+                        profileDao.updateProfileData(
+                            partnerId = current.partnerId,
+                            partnerName = current.partnerName,
+                            myName = current.myName,
+                            mood = moodCapitalized,
+                            partnerAvatarUri = current.partnerAvatarUri,
+                            myAvatarUri = current.myAvatarUri
+                        )
+                    }
+                    val noteStr = if (!command.note.isNullOrBlank()) "\n\"${command.note}\"" else ""
+                    val msg = MessageEntity(
+                        id = UUID.randomUUID().toString(),
+                        senderId = "ME",
+                        type = "SYSTEM",
+                        content = "◆ STATUS MOOD: ${moodCapitalized.uppercase()} ◆$noteStr",
+                        lamportTimestamp = currentLamportClock,
+                        localTimestamp = System.currentTimeMillis()
+                    )
+                    messageDao.insertMessage(msg)
+
+                    val peerIp = p2pManager.connectedPeerIp.value
+                    if (peerIp != null) {
+                        p2pManager.sendPacket(
+                            peerIp,
+                            TetherPacket(
+                                id = msg.id,
+                                type = "SYSTEM",
+                                senderId = "ME",
+                                content = msg.content,
+                                lamportTimestamp = msg.lamportTimestamp
+                            )
+                        )
+                    }
+                }
+                is TetherCommand.Tug -> {
+                    hapticEngine.playTugHaptic()
+                    val partnerName = partnerProfile.value?.partnerName ?: "Pasangan"
+                    TetherOverlayManager.showTugOverlay(
+                        context = getApplication(),
+                        partnerName = partnerName,
+                        partnerAvatarUri = partnerProfile.value?.partnerAvatarUri
+                    )
+                    val noteStr = if (!command.message.isNullOrBlank()) "\n\"${command.message}\"" else ""
+                    val msg = MessageEntity(
+                        id = UUID.randomUUID().toString(),
+                        senderId = "ME",
+                        type = "SYSTEM",
+                        content = "⚡ KAMU MENARIK TETHER! ⚡$noteStr",
+                        lamportTimestamp = currentLamportClock,
+                        localTimestamp = System.currentTimeMillis()
+                    )
+                    messageDao.insertMessage(msg)
+
+                    val peerIp = p2pManager.connectedPeerIp.value
+                    if (peerIp != null) {
+                        p2pManager.sendPacket(
+                            peerIp,
+                            TetherPacket(
+                                id = msg.id,
+                                type = "TUG",
+                                senderId = "ME",
+                                content = command.message ?: "Tether Tug!",
+                                lamportTimestamp = msg.lamportTimestamp
+                            )
+                        )
+                    }
+                }
+                is TetherCommand.Peluk -> {
+                    val msg = MessageEntity(
+                        id = UUID.randomUUID().toString(),
+                        senderId = "ME",
+                        type = "TEXT",
+                        caption = "🩹 MODE PELUK (Dengerin Aja)",
+                        content = command.message,
+                        lamportTimestamp = currentLamportClock,
+                        localTimestamp = System.currentTimeMillis(),
+                        rotation = (-5..5).random() / 10f
+                    )
+                    messageDao.insertMessage(msg)
+
+                    val peerIp = p2pManager.connectedPeerIp.value
+                    if (peerIp != null) {
+                        p2pManager.sendPacket(
+                            peerIp,
+                            TetherPacket(
+                                id = msg.id,
+                                type = "TEXT",
+                                senderId = "ME",
+                                caption = msg.caption,
+                                content = command.message,
+                                lamportTimestamp = msg.lamportTimestamp
+                            )
+                        )
+                    }
+                }
+                is TetherCommand.Solusi -> {
+                    val msg = MessageEntity(
+                        id = UUID.randomUUID().toString(),
+                        senderId = "ME",
+                        type = "TEXT",
+                        caption = "🛠️ BUTUH SOLUSI",
+                        content = command.message,
+                        lamportTimestamp = currentLamportClock,
+                        localTimestamp = System.currentTimeMillis(),
+                        rotation = (-5..5).random() / 10f
+                    )
+                    messageDao.insertMessage(msg)
+
+                    val peerIp = p2pManager.connectedPeerIp.value
+                    if (peerIp != null) {
+                        p2pManager.sendPacket(
+                            peerIp,
+                            TetherPacket(
+                                id = msg.id,
+                                type = "TEXT",
+                                senderId = "ME",
+                                caption = msg.caption,
+                                content = command.message,
+                                lamportTimestamp = msg.lamportTimestamp
+                            )
+                        )
+                    }
+                }
+                is TetherCommand.Dadu -> {
+                    val msg = MessageEntity(
+                        id = UUID.randomUUID().toString(),
+                        senderId = "ME",
+                        type = "SYSTEM",
+                        content = "🎲 DADU ANTI-TERSERAH:\nOpsi: [${command.options.joinToString(", ")}]\n▶ HASIL KELUAR: [ ${command.chosen.uppercase()} ] ★",
+                        lamportTimestamp = currentLamportClock,
+                        localTimestamp = System.currentTimeMillis()
+                    )
+                    messageDao.insertMessage(msg)
+
+                    val peerIp = p2pManager.connectedPeerIp.value
+                    if (peerIp != null) {
+                        p2pManager.sendPacket(
+                            peerIp,
+                            TetherPacket(
+                                id = msg.id,
+                                type = "SYSTEM",
+                                senderId = "ME",
+                                content = msg.content,
+                                lamportTimestamp = msg.lamportTimestamp
+                            )
+                        )
+                    }
+                }
+                is TetherCommand.Unknown -> {
+                    val msg = MessageEntity(
+                        id = UUID.randomUUID().toString(),
+                        senderId = "ME",
+                        type = "SYSTEM",
+                        content = "⚠️ ${command.reason}",
+                        lamportTimestamp = currentLamportClock,
+                        localTimestamp = System.currentTimeMillis()
+                    )
+                    messageDao.insertMessage(msg)
+                }
             }
         }
     }
@@ -186,11 +367,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun handleIncomingPacket(packet: TetherPacket) {
         currentLamportClock = maxOf(currentLamportClock, packet.lamportTimestamp) + 1
 
+        val isTug = packet.type == "TUG"
+        if (isTug) {
+            val partnerName = partnerProfile.value?.partnerName ?: "Pasangan"
+            TetherOverlayManager.showTugOverlay(
+                context = getApplication(),
+                partnerName = partnerName,
+                partnerAvatarUri = partnerProfile.value?.partnerAvatarUri
+            )
+            hapticEngine.playTugHaptic()
+        }
+
         val msg = MessageEntity(
             id = packet.id,
             senderId = "PARTNER",
-            type = packet.type,
-            content = packet.content,
+            type = if (isTug) "SYSTEM" else packet.type,
+            content = if (isTug) "⚡ ${partnerProfile.value?.partnerName ?: "Pasangan"} menarik Tether kamu! ⚡\n\"${packet.content}\"" else packet.content,
             caption = packet.caption,
             duration = packet.duration,
             lamportTimestamp = currentLamportClock,
@@ -198,7 +390,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             rotation = (-10..10).random() / 10f
         )
         messageDao.insertMessage(msg)
-        hapticEngine.playHeartbeatResonance()
+        if (!isTug) {
+            hapticEngine.playHeartbeatResonance()
+        }
     }
 
     override fun onCleared() {

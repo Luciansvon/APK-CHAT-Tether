@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,6 +30,8 @@ import com.tether.app.core.designsystem.theme.PixelDarkInk
 import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelMutedInk
 import com.tether.app.core.designsystem.theme.PixelPaperBg
+import com.tether.app.domain.command.TetherCommandParser
+import com.tether.app.ui.chat.components.CommandSuggestionBar
 
 @Composable
 fun ScrapbookBottomBar(
@@ -39,11 +42,24 @@ fun ScrapbookBottomBar(
     onCouponClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val suggestions = remember(inputText) {
+        TetherCommandParser.getSuggestions(inputText)
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .background(PixelPaperBg)
     ) {
+        if (suggestions.isNotEmpty()) {
+            CommandSuggestionBar(
+                suggestions = suggestions,
+                onSelectCommand = { cmd ->
+                    onInputChange(cmd.command + " ")
+                }
+            )
+        }
+
         // Garis Pembatas Struktural Atas Bottom Bar (2.dp Solid Pixel Dark Ink)
         Box(
             modifier = Modifier
