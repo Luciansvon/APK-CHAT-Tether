@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 data class PairingPayload(
@@ -39,18 +41,22 @@ data class PairingPayload(
 }
 
 object QrCodeHelper {
-    fun generateQrBitmap(content: String, size: Int = 512): Bitmap {
+    suspend fun generateQrBitmap(content: String, size: Int = 512): Bitmap = withContext(Dispatchers.Default) {
         val writer = QRCodeWriter()
         val bitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, size, size)
         val width = bitMatrix.width
         val height = bitMatrix.height
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+        val pixels = IntArray(width * height)
 
-        for (x in 0 until width) {
-            for (y in 0 until height) {
-                bitmap.setPixel(x, y, if (bitMatrix[x, y]) Color.BLACK else Color.WHITE)
+        for (y in 0 until height) {
+            val offset = y * width
+            for (x in 0 until width) {
+                pixels[offset + x] = if (bitMatrix[x, y]) Color.BLACK else Color.WHITE
             }
         }
-        return bitmap
+
+        Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565).apply {
+            setPixels(pixels, 0, width, 0, 0, width, height)
+        }
     }
 }

@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -52,6 +53,7 @@ fun PolaroidFrame(
         modifier = modifier
             .padding(top = 12.dp)
             .width(235.dp)
+            .graphicsLayer { rotationZ = rotation }
     ) {
         // Solid Pixel Drop Shadow
         Box(
@@ -98,8 +100,9 @@ fun PolaroidFrame(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .graphicsLayer { alpha = animatedFogAlpha }
                                 .background(Color(0xE6E5DBC2))
-                                .pointerInput(Unit) {
+                                .pointerInput(isFoggy) {
                                     detectDragGestures { change, dragAmount ->
                                         change.consume()
                                         scratchProgress = (scratchProgress + (dragAmount.getDistance() / 600f)).coerceAtMost(1f)

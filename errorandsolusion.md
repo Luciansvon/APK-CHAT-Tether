@@ -4,7 +4,7 @@ Dokumen ini mencatat log kesalahan dan solusi praktis selama implementasi kode:
 
 ## 1. Setup Awal & Inisialisasi Arsitektur
 * **Error**: Direct image gen melalui endpoint eksternal gagal karena saldo/kredit atau 401 unauthenticated.
-* **Solusi**: Integrasi langsung dengan instance lokal 9Router (`http://localhost:20128/v1`) menggunakan API key `sk-85dff2b13794dd01-bk2or9-40cd5c20` yang tersimpan di basis data router lokal.
+* **Solusi**: Integrasi langsung dengan instance lokal 9Router (`http://localhost:20128/v1`) menggunakan API key `sk-<REDACTED_LOCAL_KEY>` yang tersimpan di basis data router lokal.
 * **Error**: Pembatasan modifikasi direktori di luar ruang kerja selama fase perencanaan (Plan Mode).
 * **Solusi**: Menyimpan cetak biru sementara di direktori plan sebelum pengguna memberikan otorisasi untuk memulai coding loop implementasi di workspace project.
 

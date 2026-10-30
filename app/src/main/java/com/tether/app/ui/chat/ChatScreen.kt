@@ -99,6 +99,7 @@ fun ChatScreen(
     if (showVaultSheet) {
         ScrapbookVaultSheet(
             initialTab = vaultInitialTab,
+            onClaimCoupon = { couponId -> viewModel.claimCoupon(couponId) },
             onDismiss = { showVaultSheet = false }
         )
     }
@@ -301,11 +302,15 @@ fun ChatScreen(
                             }
                         }
                         "POLAROID" -> {
+                            val timeStr = remember(message.localTimestamp) {
+                                java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(message.localTimestamp))
+                            }
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                                 PolaroidFrame(
                                     caption = message.caption ?: "Momen kita",
-                                    timestamp = "baru saja",
-                                    isFoggy = message.isFoggy
+                                    timestamp = timeStr,
+                                    isFoggy = message.isFoggy,
+                                    rotation = message.rotation
                                 ) {
                                     Column(
                                         modifier = Modifier
@@ -337,7 +342,8 @@ fun ChatScreen(
                                 WhisperCassetteCard(
                                     duration = message.duration ?: "0:10",
                                     isPlaying = playingAudioId == message.id,
-                                    onPlayClick = { viewModel.toggleAudioPlayback(message.id) }
+                                    onPlayClick = { viewModel.toggleAudioPlayback(message.id) },
+                                    rotation = message.rotation
                                 )
                             }
                         }

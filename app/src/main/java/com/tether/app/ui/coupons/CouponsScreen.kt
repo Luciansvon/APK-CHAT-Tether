@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -42,15 +43,16 @@ import com.tether.app.core.designsystem.theme.PixelDarkInk
 import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelGridDot
 import com.tether.app.core.designsystem.theme.PixelPaperBg
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CouponsScreen(
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val db = TetherDatabase.getInstance(context)
     val coupons by db.couponDao().getAllCouponsFlow().collectAsState(initial = emptyList())
 
@@ -145,8 +147,10 @@ fun CouponsScreen(
                             description = coupon.description,
                             isClaimed = coupon.isClaimed,
                             onClaimClick = {
-                                CoroutineScope(Dispatchers.IO).launch {
-                                    db.couponDao().claimCoupon(coupon.id, System.currentTimeMillis())
+                                coroutineScope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        db.couponDao().claimCoupon(coupon.id, System.currentTimeMillis())
+                                    }
                                 }
                             }
                         )

@@ -27,15 +27,23 @@ object KeystoreManager {
 
         if (!keyStore.containsAlias(MASTER_KEY_ALIAS)) {
             val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
-            val spec = KeyGenParameterSpec.Builder(
+            val specBuilder = KeyGenParameterSpec.Builder(
                 MASTER_KEY_ALIAS,
                 KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
             )
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(256)
-                .build()
-            keyGenerator.init(spec)
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                if (context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_STRONGBOX_KEYSTORE)) {
+                    try {
+                        specBuilder.setIsStrongBoxBacked(true)
+                    } catch (_: Exception) {}
+                }
+            }
+
+            keyGenerator.init(specBuilder.build())
             keyGenerator.generateKey()
         }
 

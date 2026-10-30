@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,7 +24,9 @@ fun WashiRibbon(
     modifier: Modifier = Modifier,
     rotation: Float = 0f
 ) {
-    Box(modifier = modifier) {
+    Box(
+        modifier = modifier.graphicsLayer { rotationZ = rotation }
+    ) {
         // Solid Pixel Drop Shadow
         Box(
             modifier = Modifier

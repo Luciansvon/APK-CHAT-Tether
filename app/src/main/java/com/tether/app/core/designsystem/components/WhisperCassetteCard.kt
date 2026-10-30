@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,7 +42,9 @@ fun WhisperCassetteCard(
     rotation: Float = 0f
 ) {
     Box(
-        modifier = modifier.width(250.dp)
+        modifier = modifier
+            .width(250.dp)
+            .graphicsLayer { rotationZ = rotation }
     ) {
         // Solid Pixel Drop Shadow
         Box(

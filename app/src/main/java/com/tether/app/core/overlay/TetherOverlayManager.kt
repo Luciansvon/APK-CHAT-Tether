@@ -40,6 +40,8 @@ object TetherOverlayManager {
         context.startActivity(intent)
     }
 
+    private var hapticEngine: HapticResonanceEngine? = null
+
     fun showTugOverlay(
         context: Context,
         partnerName: String,
@@ -51,13 +53,12 @@ object TetherOverlayManager {
 
             Log.d("TetherOverlay", "showTugOverlay executing on main thread. canDrawOverlays=${canDrawOverlays(context)}")
             if (!canDrawOverlays(context)) {
-                Log.d("TetherOverlay", "Overlay permission not granted! Requesting...")
-                requestOverlayPermission(context)
+                Log.d("TetherOverlay", "Overlay permission not granted, skipping background overlay.")
                 return@post
             }
 
-            // Getaran Haptic saat tarikan benang diterima
-            HapticResonanceEngine(context).playTugHaptic()
+            val haptics = hapticEngine ?: HapticResonanceEngine(context.applicationContext).also { hapticEngine = it }
+            haptics.playTugHaptic()
 
             val wm = context.applicationContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             windowManager = wm
@@ -103,7 +104,7 @@ object TetherOverlayManager {
                             partnerName = partnerName,
                             partnerAvatarUri = partnerAvatarUri,
                             onTugBack = {
-                                HapticResonanceEngine(context).playTugHaptic()
+                                haptics.playTugHaptic()
                                 onTugBack()
                                 dismiss()
                             },

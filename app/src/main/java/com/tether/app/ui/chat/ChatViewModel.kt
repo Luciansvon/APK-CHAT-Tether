@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val db = TetherDatabase.getInstance(application)
@@ -44,15 +45,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _playingAudioId = MutableStateFlow<String?>(null)
     val playingAudioId = _playingAudioId.asStateFlow()
 
-    private var currentLamportClock: Long = 0L
+    private val currentLamportClock = AtomicLong(0L)
 
     init {
         p2pManager.startP2pEngine()
-        proximitySensor.startListening()
 
         viewModelScope.launch {
             seedDefaultCouponsAndProfile()
-            currentLamportClock = messageDao.getLatestLamportTimestamp() ?: 0L
+            val latest = messageDao.getLatestLamportTimestamp() ?: 0L
+            currentLamportClock.set(latest)
         }
 
         // Tangkap paket P2P yang masuk secara real-time
@@ -118,14 +119,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        currentLamportClock++
+        val clock = currentLamportClock.incrementAndGet()
 
         val msg = MessageEntity(
             id = UUID.randomUUID().toString(),
             senderId = "ME",
             type = "TEXT",
             content = text,
-            lamportTimestamp = currentLamportClock,
+            lamportTimestamp = clock,
             localTimestamp = System.currentTimeMillis(),
             rotation = (-5..5).random() / 10f
         )
@@ -151,7 +152,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun executeCommand(rawText: String) {
         val command = TetherCommandParser.parse(rawText)
         viewModelScope.launch {
-            currentLamportClock++
+            val clock = currentLamportClock.incrementAndGet()
             when (command) {
                 is TetherCommand.Mood -> {
                     val current = profileDao.getProfile()
@@ -172,7 +173,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         senderId = "ME",
                         type = "SYSTEM",
                         content = "◆ STATUS MOOD: ${moodCapitalized.uppercase()} ◆$noteStr",
-                        lamportTimestamp = currentLamportClock,
+                        lamportTimestamp = clock,
                         localTimestamp = System.currentTimeMillis()
                     )
                     messageDao.insertMessage(msg)
@@ -205,7 +206,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         senderId = "ME",
                         type = "SYSTEM",
                         content = "⚡ KAMU MENARIK TETHER! ⚡$noteStr",
-                        lamportTimestamp = currentLamportClock,
+                        lamportTimestamp = clock,
                         localTimestamp = System.currentTimeMillis()
                     )
                     messageDao.insertMessage(msg)
@@ -231,7 +232,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         type = "TEXT",
                         caption = "🩹 MODE PELUK (Dengerin Aja)",
                         content = command.message,
-                        lamportTimestamp = currentLamportClock,
+                        lamportTimestamp = clock,
                         localTimestamp = System.currentTimeMillis(),
                         rotation = (-5..5).random() / 10f
                     )
@@ -259,7 +260,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         type = "TEXT",
                         caption = "🛠️ BUTUH SOLUSI",
                         content = command.message,
-                        lamportTimestamp = currentLamportClock,
+                        lamportTimestamp = clock,
                         localTimestamp = System.currentTimeMillis(),
                         rotation = (-5..5).random() / 10f
                     )
@@ -286,7 +287,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         senderId = "ME",
                         type = "SYSTEM",
                         content = "🎲 DADU ANTI-TERSERAH:\nOpsi: [${command.options.joinToString(", ")}]\n▶ HASIL KELUAR: [ ${command.chosen.uppercase()} ] ★",
-                        lamportTimestamp = currentLamportClock,
+                        lamportTimestamp = clock,
                         localTimestamp = System.currentTimeMillis()
                     )
                     messageDao.insertMessage(msg)
@@ -311,7 +312,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         senderId = "ME",
                         type = "SYSTEM",
                         content = "⚠️ ${command.reason}",
-                        lamportTimestamp = currentLamportClock,
+                        lamportTimestamp = clock,
                         localTimestamp = System.currentTimeMillis()
                     )
                     messageDao.insertMessage(msg)
@@ -321,14 +322,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendPolaroidSample() {
-        currentLamportClock++
+        val clock = currentLamportClock.incrementAndGet()
         val msg = MessageEntity(
             id = UUID.randomUUID().toString(),
             senderId = "ME",
             type = "POLAROID",
             content = "polaroid_cafe",
             caption = "nanti malem ke sini yuk?",
-            lamportTimestamp = currentLamportClock,
+            lamportTimestamp = clock,
             localTimestamp = System.currentTimeMillis(),
             isFoggy = true,
             rotation = -2.0f
@@ -339,14 +340,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendWhisperSample() {
-        currentLamportClock++
+        val clock = currentLamportClock.incrementAndGet()
         val msg = MessageEntity(
             id = UUID.randomUUID().toString(),
             senderId = "ME",
             type = "WHISPER",
             content = "whisper_sample_audio",
             duration = "0:14",
-            lamportTimestamp = currentLamportClock,
+            lamportTimestamp = clock,
             localTimestamp = System.currentTimeMillis(),
             rotation = 1.0f
         )
@@ -358,40 +359,112 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleAudioPlayback(id: String) {
         if (_playingAudioId.value == id) {
             _playingAudioId.value = null
+            proximitySensor.stopListening()
         } else {
             _playingAudioId.value = id
+            proximitySensor.startListening()
             hapticEngine.playTouchPulse()
         }
     }
 
-    private suspend fun handleIncomingPacket(packet: TetherPacket) {
-        currentLamportClock = maxOf(currentLamportClock, packet.lamportTimestamp) + 1
-
-        val isTug = packet.type == "TUG"
-        if (isTug) {
-            val partnerName = partnerProfile.value?.partnerName ?: "Pasangan"
-            TetherOverlayManager.showTugOverlay(
-                context = getApplication(),
-                partnerName = partnerName,
-                partnerAvatarUri = partnerProfile.value?.partnerAvatarUri
-            )
+    fun claimCoupon(couponId: String) {
+        viewModelScope.launch {
+            couponDao.claimCoupon(couponId, System.currentTimeMillis())
+            val peerIp = p2pManager.connectedPeerIp.value
+            if (peerIp != null) {
+                val clock = currentLamportClock.incrementAndGet()
+                p2pManager.sendPacket(
+                    peerIp,
+                    TetherPacket(
+                        id = UUID.randomUUID().toString(),
+                        type = "COUPON_CLAIM",
+                        senderId = "ME",
+                        content = couponId,
+                        lamportTimestamp = clock
+                    )
+                )
+            }
             hapticEngine.playTugHaptic()
         }
+    }
 
-        val msg = MessageEntity(
-            id = packet.id,
-            senderId = "PARTNER",
-            type = if (isTug) "SYSTEM" else packet.type,
-            content = if (isTug) "⚡ ${partnerProfile.value?.partnerName ?: "Pasangan"} menarik Tether kamu! ⚡\n\"${packet.content}\"" else packet.content,
-            caption = packet.caption,
-            duration = packet.duration,
-            lamportTimestamp = currentLamportClock,
-            localTimestamp = System.currentTimeMillis(),
-            rotation = (-10..10).random() / 10f
-        )
-        messageDao.insertMessage(msg)
-        if (!isTug) {
-            hapticEngine.playHeartbeatResonance()
+    private suspend fun handleIncomingPacket(packet: TetherPacket) {
+        val updatedClock = currentLamportClock.updateAndGet { current ->
+            maxOf(current, packet.lamportTimestamp) + 1L
+        }
+
+        when (packet.type) {
+            "TEXT", "POLAROID", "WHISPER" -> {
+                val msg = MessageEntity(
+                    id = packet.id,
+                    senderId = "PARTNER",
+                    type = packet.type,
+                    content = packet.content,
+                    caption = packet.caption,
+                    duration = packet.duration,
+                    lamportTimestamp = updatedClock,
+                    localTimestamp = System.currentTimeMillis(),
+                    isFoggy = packet.type == "POLAROID",
+                    rotation = (-10..10).random() / 10f
+                )
+                messageDao.insertMessage(msg)
+                hapticEngine.playHeartbeatResonance()
+            }
+            "TUG" -> {
+                hapticEngine.playTugHaptic()
+                val partnerName = partnerProfile.value?.partnerName ?: "Pasangan"
+                if (TetherOverlayManager.canDrawOverlays(getApplication())) {
+                    TetherOverlayManager.showTugOverlay(
+                        context = getApplication(),
+                        partnerName = partnerName,
+                        partnerAvatarUri = partnerProfile.value?.partnerAvatarUri
+                    )
+                }
+                val noteStr = if (packet.content.isNotBlank() && packet.content != "Tether Tug!") "\n\"${packet.content}\"" else ""
+                val msg = MessageEntity(
+                    id = packet.id,
+                    senderId = "PARTNER",
+                    type = "SYSTEM",
+                    content = "⚡ $partnerName menarik Tether kamu! ⚡$noteStr",
+                    caption = packet.caption,
+                    duration = packet.duration,
+                    lamportTimestamp = updatedClock,
+                    localTimestamp = System.currentTimeMillis()
+                )
+                messageDao.insertMessage(msg)
+            }
+            "SYSTEM" -> {
+                val msg = MessageEntity(
+                    id = packet.id,
+                    senderId = "PARTNER",
+                    type = "SYSTEM",
+                    content = packet.content,
+                    caption = packet.caption,
+                    duration = packet.duration,
+                    lamportTimestamp = updatedClock,
+                    localTimestamp = System.currentTimeMillis()
+                )
+                messageDao.insertMessage(msg)
+                hapticEngine.playHeartbeatResonance()
+            }
+            "COUPON_CLAIM" -> {
+                couponDao.claimCoupon(packet.content, System.currentTimeMillis())
+                hapticEngine.playTugHaptic()
+            }
+            "HAPTIC_TOUCH" -> {
+                hapticEngine.playTouchPulse()
+            }
+            "HEARTBEAT" -> {
+                hapticEngine.playHeartbeatResonance()
+                val profile = partnerProfile.value
+                if (TetherOverlayManager.canDrawOverlays(getApplication())) {
+                    TetherOverlayManager.showTugOverlay(
+                        context = getApplication(),
+                        partnerName = profile?.partnerName ?: "Pasangan",
+                        partnerAvatarUri = profile?.partnerAvatarUri
+                    )
+                }
+            }
         }
     }
 

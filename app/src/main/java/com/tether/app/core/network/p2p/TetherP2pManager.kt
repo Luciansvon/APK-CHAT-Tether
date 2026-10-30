@@ -8,6 +8,7 @@ import com.tether.app.core.network.model.TetherPacket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -18,12 +19,12 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.PrintWriter
-import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.UUID
 
 class TetherP2pManager(private val context: Context) {
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
 
     private val _incomingPackets = MutableSharedFlow<TetherPacket>(extraBufferCapacity = 64)
@@ -36,53 +37,59 @@ class TetherP2pManager(private val context: Context) {
     val connectedPeerIp = _connectedPeerIp.asStateFlow()
 
     private var serverSocket: ServerSocket? = null
+    @Volatile
     private var isListening = false
     private val P2P_PORT = 42890
     private val SERVICE_TYPE = "_tether_p2p._tcp."
-    private val SERVICE_NAME = "Tether_Couple"
+    private val localServiceName = "Tether_${UUID.randomUUID().toString().take(8)}"
+    private var registeredServiceName: String = localServiceName
+
+    private var registrationListener: NsdManager.RegistrationListener? = null
+    private var discoveryListener: NsdManager.DiscoveryListener? = null
 
     fun startP2pEngine() {
+        if (isListening) return
+        scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         startSocketServer()
         registerNsdService()
         discoverNsdServices()
     }
 
     private fun startSocketServer() {
-        if (isListening) return
         scope.launch {
             try {
                 serverSocket = ServerSocket(P2P_PORT).apply { reuseAddress = true }
                 isListening = true
                 Log.d("TetherP2P", "Socket server listening on port $P2P_PORT")
-
                 while (isActive && isListening) {
                     val clientSocket = serverSocket?.accept() ?: break
                     handleIncomingConnection(clientSocket)
                 }
             } catch (e: Exception) {
-                Log.e("TetherP2P", "Server socket error: ${e.message}")
+                if (isListening) Log.e("TetherP2P", "Server socket error: ${e.message}")
             }
         }
     }
 
     private fun handleIncomingConnection(socket: Socket) {
         scope.launch {
-            try {
-                val peerAddress = socket.inetAddress.hostAddress
-                _connectedPeerIp.value = peerAddress
-                _isP2pConnected.value = true
-
-                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
-                val line = reader.readLine()
-                if (line != null) {
-                    val packet = TetherPacket.fromJson(line)
-                    if (packet != null) {
-                        _incomingPackets.emit(packet)
+            socket.use { client ->
+                try {
+                    client.soTimeout = 5000
+                    val peerAddress = client.inetAddress.hostAddress
+                    val reader = BufferedReader(InputStreamReader(client.getInputStream(), Charsets.UTF_8))
+                    val line = reader.readLine()
+                    if (line != null) {
+                        val packet = TetherPacket.fromJson(line)
+                        if (packet != null) {
+                            _connectedPeerIp.value = peerAddress
+                            _isP2pConnected.value = true
+                            _incomingPackets.emit(packet)
+                        }
                     }
+                } catch (e: Exception) {
+                    Log.e("TetherP2P", "Read error: ${e.message}")
                 }
-                socket.close()
-            } catch (e: Exception) {
-                Log.e("TetherP2P", "Read error: ${e.message}")
             }
         }
     }
@@ -91,7 +98,7 @@ class TetherP2pManager(private val context: Context) {
         try {
             Socket(peerIp, P2P_PORT).use { socket ->
                 socket.soTimeout = 5000
-                val writer = PrintWriter(socket.getOutputStream(), true)
+                val writer = PrintWriter(socket.getOutputStream().bufferedWriter(Charsets.UTF_8), true)
                 writer.println(packet.toJson())
             }
             true
@@ -103,63 +110,75 @@ class TetherP2pManager(private val context: Context) {
 
     private fun registerNsdService() {
         val serviceInfo = NsdServiceInfo().apply {
-            serviceName = SERVICE_NAME
+            serviceName = localServiceName
             serviceType = SERVICE_TYPE
             port = P2P_PORT
         }
-
+        val listener = object : NsdManager.RegistrationListener {
+            override fun onServiceRegistered(info: NsdServiceInfo) {
+                registeredServiceName = info.serviceName
+                Log.d("TetherP2P", "NSD registered as: $registeredServiceName")
+            }
+            override fun onRegistrationFailed(info: NsdServiceInfo, errorCode: Int) {
+                Log.e("TetherP2P", "NSD registration failed: $errorCode")
+            }
+            override fun onServiceUnregistered(info: NsdServiceInfo) {
+                Log.d("TetherP2P", "NSD unregistered: ${info.serviceName}")
+            }
+            override fun onUnregistrationFailed(info: NsdServiceInfo, errorCode: Int) {
+                Log.e("TetherP2P", "NSD unregistration failed: $errorCode")
+            }
+        }
+        registrationListener = listener
         try {
-            nsdManager.registerService(
-                serviceInfo,
-                NsdManager.PROTOCOL_DNS_SD,
-                object : NsdManager.RegistrationListener {
-                    override fun onServiceRegistered(info: NsdServiceInfo) {
-                        Log.d("TetherP2P", "NSD registered: ${info.serviceName}")
-                    }
-                    override fun onRegistrationFailed(info: NsdServiceInfo, errorCode: Int) {}
-                    override fun onServiceUnregistered(info: NsdServiceInfo) {}
-                    override fun onUnregistrationFailed(info: NsdServiceInfo, errorCode: Int) {}
-                }
-            )
+            nsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, listener)
         } catch (e: Exception) {
             Log.e("TetherP2P", "NSD register error: ${e.message}")
         }
     }
 
     private fun discoverNsdServices() {
-        try {
-            nsdManager.discoverServices(
-                SERVICE_TYPE,
-                NsdManager.PROTOCOL_DNS_SD,
-                object : NsdManager.DiscoveryListener {
-                    override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
-                    override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
-                    override fun onDiscoveryStarted(serviceType: String) {}
-                    override fun onDiscoveryStopped(serviceType: String) {}
+        val listener = object : NsdManager.DiscoveryListener {
+            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
+            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
+            override fun onDiscoveryStarted(serviceType: String) {}
+            override fun onDiscoveryStopped(serviceType: String) {}
 
-                    override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                        nsdManager.resolveService(
-                            serviceInfo,
-                            object : NsdManager.ResolveListener {
-                                override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {}
-                                override fun onServiceResolved(resolvedInfo: NsdServiceInfo) {
-                                    val host: InetAddress? = resolvedInfo.host
-                                    val ip = host?.hostAddress
-                                    if (ip != null) {
-                                        _connectedPeerIp.value = ip
-                                        _isP2pConnected.value = true
-                                        Log.d("TetherP2P", "Peer found via NSD at $ip")
-                                    }
-                                }
-                            }
-                        )
-                    }
-
-                    override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-                        _isP2pConnected.value = false
-                    }
+            override fun onServiceFound(serviceInfo: NsdServiceInfo) {
+                // Filter anti self-discovery: abaikan layanan milik sendiri
+                if (serviceInfo.serviceName == registeredServiceName ||
+                    serviceInfo.serviceName == localServiceName
+                ) {
+                    return
                 }
-            )
+                nsdManager.resolveService(
+                    serviceInfo,
+                    object : NsdManager.ResolveListener {
+                        override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {}
+                        override fun onServiceResolved(resolvedInfo: NsdServiceInfo) {
+                            if (resolvedInfo.serviceName == registeredServiceName) return
+                            val host = resolvedInfo.host
+                            val ip = host?.hostAddress
+                            if (ip != null && !host.isLoopbackAddress) {
+                                _connectedPeerIp.value = ip
+                                _isP2pConnected.value = true
+                                Log.d("TetherP2P", "Peer found via NSD at $ip")
+                            }
+                        }
+                    }
+                )
+            }
+
+            override fun onServiceLost(serviceInfo: NsdServiceInfo) {
+                if (serviceInfo.serviceName != registeredServiceName) {
+                    _isP2pConnected.value = false
+                    _connectedPeerIp.value = null
+                }
+            }
+        }
+        discoveryListener = listener
+        try {
+            nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
         } catch (e: Exception) {
             Log.e("TetherP2P", "NSD discovery error: ${e.message}")
         }
@@ -167,8 +186,16 @@ class TetherP2pManager(private val context: Context) {
 
     fun stop() {
         isListening = false
-        try {
-            serverSocket?.close()
-        } catch (_: Exception) {}
+        registrationListener?.let {
+            try { nsdManager.unregisterService(it) } catch (_: Exception) {}
+        }
+        registrationListener = null
+        discoveryListener?.let {
+            try { nsdManager.stopServiceDiscovery(it) } catch (_: Exception) {}
+        }
+        discoveryListener = null
+        try { serverSocket?.close() } catch (_: Exception) {}
+        serverSocket = null
+        scope.cancel()
     }
 }

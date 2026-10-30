@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- Zero-knowledge: Dilarang backup database chat ke cloud backup bawaan OS -->
+        <!-- Zero-knowledge: Dilarang backup database & shared preferences ke cloud OS -->
         <exclude domain="database" path="." />
         <exclude domain="sharedpref" path="." />
     </cloud-backup>
     <device-transfer>
-        <!-- Boleh transfer lokal kabel saat ganti HP jika disetujui -->
-        <include domain="database" path="." />
+        <!-- Kunci master terikat ke hardware Keystore perangkat; cegah transfer database terenkripsi yang tak terbaca -->
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
     </device-transfer>
 </data-extraction-rules>

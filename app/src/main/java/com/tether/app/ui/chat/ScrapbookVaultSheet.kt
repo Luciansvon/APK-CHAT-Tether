@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,15 +67,18 @@ import com.tether.app.core.pairing.QrCodeHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScrapbookVaultSheet(
     initialTab: Int = 0,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    onClaimCoupon: ((String) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val db = remember { TetherDatabase.getInstance(context) }
     val coupons by db.couponDao().getAllCouponsFlow().collectAsState(initial = emptyList())
     val messages by db.messageDao().getAllMessagesFlow().collectAsState(initial = emptyList())
@@ -235,8 +239,14 @@ fun ScrapbookVaultSheet(
                                     description = coupon.description,
                                     isClaimed = coupon.isClaimed,
                                     onClaimClick = {
-                                        CoroutineScope(Dispatchers.IO).launch {
-                                            db.couponDao().claimCoupon(coupon.id, System.currentTimeMillis())
+                                        if (onClaimCoupon != null) {
+                                            onClaimCoupon(coupon.id)
+                                        } else {
+                                            coroutineScope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    db.couponDao().claimCoupon(coupon.id, System.currentTimeMillis())
+                                                }
+                                            }
                                         }
                                     }
                                 )

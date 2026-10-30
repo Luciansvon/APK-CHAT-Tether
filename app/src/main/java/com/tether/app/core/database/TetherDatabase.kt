@@ -44,6 +44,12 @@ abstract class TetherDatabase : RoomDatabase() {
                 )
                     .openHelperFactory(factory)
                     .addCallback(object : Callback() {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            super.onCreate(db)
+                            try {
+                                db.query("PRAGMA secure_delete = ON;").close()
+                            } catch (_: Exception) {}
+                        }
                         override fun onOpen(db: SupportSQLiteDatabase) {
                             super.onOpen(db)
                             try {
@@ -51,7 +57,7 @@ abstract class TetherDatabase : RoomDatabase() {
                             } catch (_: Exception) {}
                         }
                     })
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
 
                 INSTANCE = instance
