@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.Tether" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#F8F5EE</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#F8F5EE</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">@color/craft_paper_bg</item>
+    </style>
+</resources>

@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Pixel Audio Cassette -->
+    <path
+        android:fillColor="#1E1D1A"
+        android:pathData="M2,4h20v16h-20z M4,6h16v12h-16z M6,8h12v4h-12z" />
+    <path
+        android:fillColor="#5A5343"
+        android:pathData="M7,14h3v2h-3z M14,14h3v2h-3z" />
+</vector>

@@ -1,0 +1,11 @@
+<resources>
+    <!-- Pixel Cozy Palette -->
+    <color name="craft_paper_bg">#F7F2E2</color>
+    <color name="craft_paper_surface">#FFFFFF</color>
+    <color name="polaroid_white">#FFFDF5</color>
+    <color name="charcoal_ink">#1E1D1A</color>
+    <color name="terracotta_primary">#D95763</color>
+    <color name="sage_green_online">#699E4C</color>
+    <color name="washi_tape_tint">#EBE0C8</color>
+    <color name="coupon_dashed_border">#B5A788</color>
+</resources>

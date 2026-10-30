@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Tether</string>
+    <string name="pairing_title">Hubungkan Perangkat Pasangan</string>
+    <string name="scan_qr_desc">Pindai kode QR di layar pasangan Anda untuk menyambungkan koneksi privat.</string>
+    <string name="my_qr_code">Kode QR Saya</string>
+    <string name="p2p_active_status">Tether P2P Aktif (0-Data)</string>
+    <string name="relay_active_status">Tether E2EE Relay Aktif</string>
+    <string name="offline_status">Menunggu Sambungan...</string>
+</resources>
