@@ -45,24 +45,13 @@ fun WhisperCassetteCard(
         modifier = modifier
             .width(250.dp)
             .graphicsLayer { rotationZ = rotation }
+            .pixelShadow(3.dp, 3.dp)
+            .fillMaxWidth()
+            .background(Color.White)
+            .border(2.dp, PixelDarkInk)
+            .padding(10.dp)
     ) {
-        // Solid Pixel Drop Shadow
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 3.dp, y = 3.dp)
-                .background(PixelDarkInk)
-        )
-
-        // Cassette Card
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White)
-                .border(2.dp, PixelDarkInk)
-                .padding(10.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
                 // Header Kaset
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -168,5 +157,4 @@ fun WhisperCassetteCard(
                 }
             }
         }
-    }
 }

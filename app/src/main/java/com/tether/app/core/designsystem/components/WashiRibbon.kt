@@ -25,30 +25,20 @@ fun WashiRibbon(
     rotation: Float = 0f
 ) {
     Box(
-        modifier = modifier.graphicsLayer { rotationZ = rotation }
+        modifier = modifier
+            .graphicsLayer { rotationZ = rotation }
+            .pixelShadow(2.dp, 2.dp)
+            .background(PixelWashiTint)
+            .border(2.dp, PixelDarkInk)
+            .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
-        // Solid Pixel Drop Shadow
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 2.dp, y = 2.dp)
-                .background(PixelDarkInk)
+        Text(
+            text = text,
+            fontFamily = PixelFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = 10.sp,
+            color = PixelDarkInk,
+            letterSpacing = 0.5.sp
         )
-        // Foreground Pixel Ribbon
-        Box(
-            modifier = Modifier
-                .background(PixelWashiTint)
-                .border(2.dp, PixelDarkInk)
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-        ) {
-            Text(
-                text = text,
-                fontFamily = PixelFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 10.sp,
-                color = PixelDarkInk,
-                letterSpacing = 0.5.sp
-            )
-        }
     }
 }

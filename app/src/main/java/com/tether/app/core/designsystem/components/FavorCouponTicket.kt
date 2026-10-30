@@ -46,25 +46,14 @@ fun FavorCouponTicket(
         modifier = modifier
             .width(250.dp)
             .graphicsLayer { rotationZ = rotation }
+            .pixelShadow(3.dp, 3.dp)
+            .fillMaxWidth()
+            .background(PixelFrameCard)
+            .border(2.dp, PixelDarkInk)
+            .clickable(enabled = !isClaimed) { onClaimClick() }
+            .padding(10.dp)
     ) {
-        // Solid Pixel Shadow
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 3.dp, y = 3.dp)
-                .background(PixelDarkInk)
-        )
-
-        // Ticket Box
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(PixelFrameCard)
-                .border(2.dp, PixelDarkInk)
-                .clickable(enabled = !isClaimed) { onClaimClick() }
-                .padding(10.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -128,5 +117,4 @@ fun FavorCouponTicket(
                 }
             }
         }
-    }
 }

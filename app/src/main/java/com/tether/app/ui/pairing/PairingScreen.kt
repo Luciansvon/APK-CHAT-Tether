@@ -41,6 +41,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tether.app.core.designsystem.components.WashiRibbon
+import com.tether.app.core.designsystem.components.pixelGridBackground
+import com.tether.app.core.designsystem.components.pixelShadow
 import com.tether.app.core.designsystem.theme.PixelDarkInk
 import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelGridDot
@@ -89,28 +91,21 @@ fun PairingScreen(
                     .padding(top = 10.dp, start = 16.dp, end = 16.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(modifier = Modifier.size(38.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .offset(x = 2.dp, y = 2.dp)
-                            .background(PixelDarkInk)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .pixelShadow(2.dp, 2.dp)
+                        .background(Color.White)
+                        .border(2.dp, PixelDarkInk)
+                        .clickable { onBackClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Kembali",
+                        tint = PixelDarkInk,
+                        modifier = Modifier.size(18.dp)
                     )
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(Color.White)
-                            .border(2.dp, PixelDarkInk)
-                            .clickable { onBackClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Kembali",
-                            tint = PixelDarkInk,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -128,104 +123,70 @@ fun PairingScreen(
         },
         containerColor = PixelPaperBg
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .pixelGridBackground()
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val step = 16.dp.toPx()
-                var x = 0f
-                while (x < size.width) {
-                    var y = 0f
-                    while (y < size.height) {
-                        drawRect(
-                            color = PixelGridDot,
-                            topLeft = Offset(x, y),
-                            size = Size(1.5f, 1.5f)
-                        )
-                        y += step
-                    }
-                    x += step
+            WashiRibbon(
+                text = "◆ KUNCI PASANGAN EKSKLUSIF 1-ON-1 ◆"
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Kartu Polaroid Pembungkus QR Code Pixel
+            Box(
+                modifier = Modifier
+                    .pixelShadow(4.dp, 4.dp)
+                    .background(Color.White)
+                    .border(2.dp, PixelDarkInk)
+                    .padding(14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                qrBitmap?.let { bitmap ->
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "QR Code Pairing",
+                        modifier = Modifier.size(230.dp)
+                    )
                 }
             }
 
-            Column(
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "Pindai kode ini pada perangkat pasanganmu untuk menghubungkan Tether P2P tanpa akun publik.",
+                fontFamily = PixelFont,
+                fontSize = 11.sp,
+                color = PixelSecondaryInk,
+                textAlign = TextAlign.Center,
+                lineHeight = 16.sp
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Tombol Kembali Pixel
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    .height(42.dp)
+                    .pixelShadow(3.dp, 3.dp)
+                    .background(PixelHeartRed)
+                    .border(2.dp, PixelDarkInk)
+                    .clickable { onBackClick() }
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center
             ) {
-                WashiRibbon(
-                    text = "◆ KUNCI PASANGAN EKSKLUSIF 1-ON-1 ◆"
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Kartu Polaroid Pembungkus QR Code Pixel
-                Box {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .offset(x = 4.dp, y = 4.dp)
-                            .background(PixelDarkInk)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .background(Color.White)
-                            .border(2.dp, PixelDarkInk)
-                            .padding(14.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        qrBitmap?.let { bitmap ->
-                            Image(
-                                bitmap = bitmap.asImageBitmap(),
-                                contentDescription = "QR Code Pairing",
-                                modifier = Modifier.size(230.dp)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
                 Text(
-                    text = "Pindai kode ini pada perangkat pasanganmu untuk menghubungkan Tether P2P tanpa akun publik.",
+                    text = "KEMBALI KE SCRAPBOOK",
                     fontFamily = PixelFont,
-                    fontSize = 11.sp,
-                    color = PixelSecondaryInk,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 16.sp
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
                 )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Tombol Kembali Pixel
-                Box(modifier = Modifier.height(42.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .offset(x = 3.dp, y = 3.dp)
-                            .background(PixelDarkInk)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .background(PixelHeartRed)
-                            .border(2.dp, PixelDarkInk)
-                            .clickable { onBackClick() }
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "KEMBALI KE SCRAPBOOK",
-                            fontFamily = PixelFont,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
             }
         }
     }

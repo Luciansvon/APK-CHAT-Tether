@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.sp
 import com.tether.app.core.database.TetherDatabase
 import com.tether.app.core.designsystem.components.FavorCouponTicket
 import com.tether.app.core.designsystem.components.WashiRibbon
+import com.tether.app.core.designsystem.components.pixelGridBackground
+import com.tether.app.core.designsystem.components.pixelShadow
 import com.tether.app.core.designsystem.theme.PixelDarkInk
 import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelGridDot
@@ -67,28 +69,21 @@ fun CouponsScreen(
                     .padding(top = 10.dp, start = 16.dp, end = 16.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(modifier = Modifier.size(38.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .offset(x = 2.dp, y = 2.dp)
-                            .background(PixelDarkInk)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .pixelShadow(2.dp, 2.dp)
+                        .background(Color.White)
+                        .border(2.dp, PixelDarkInk)
+                        .clickable { onBackClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Kembali",
+                        tint = PixelDarkInk,
+                        modifier = Modifier.size(18.dp)
                     )
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(Color.White)
-                            .border(2.dp, PixelDarkInk)
-                            .clickable { onBackClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Kembali",
-                            tint = PixelDarkInk,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -106,61 +101,41 @@ fun CouponsScreen(
         },
         containerColor = PixelPaperBg
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .pixelGridBackground(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val step = 16.dp.toPx()
-                var x = 0f
-                while (x < size.width) {
-                    var y = 0f
-                    while (y < size.height) {
-                        drawRect(
-                            color = PixelGridDot,
-                            topLeft = Offset(x, y),
-                            size = Size(1.5f, 1.5f)
-                        )
-                        y += step
-                    }
-                    x += step
-                }
-            }
+            WashiRibbon(
+                text = "◆ KOLEKSI KUPON BERDUA ◆",
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
 
-            Column(
+            LazyColumn(
                 modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                WashiRibbon(
-                    text = "◆ KOLEKSI KUPON BERDUA ◆",
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    items(coupons, key = { it.id }) { coupon ->
-                        FavorCouponTicket(
-                            title = coupon.title,
-                            description = coupon.description,
-                            isClaimed = coupon.isClaimed,
-                            onClaimClick = {
-                                if (onClaimCoupon != null) {
-                                    onClaimCoupon(coupon.id)
-                                } else {
-                                    coroutineScope.launch {
-                                        withContext(Dispatchers.IO) {
-                                            db.couponDao().claimCoupon(coupon.id, System.currentTimeMillis())
-                                        }
+                items(coupons, key = { it.id }) { coupon ->
+                    FavorCouponTicket(
+                        title = coupon.title,
+                        description = coupon.description,
+                        isClaimed = coupon.isClaimed,
+                        onClaimClick = {
+                            if (onClaimCoupon != null) {
+                                onClaimCoupon(coupon.id)
+                            } else {
+                                coroutineScope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        db.couponDao().claimCoupon(coupon.id, System.currentTimeMillis())
                                     }
                                 }
                             }
-                        )
-                    }
+                        }
+                    )
                 }
             }
         }

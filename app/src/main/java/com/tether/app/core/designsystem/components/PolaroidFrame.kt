@@ -54,27 +54,16 @@ fun PolaroidFrame(
             .padding(top = 12.dp)
             .width(235.dp)
             .graphicsLayer { rotationZ = rotation }
+            .pixelShadow(3.dp, 3.dp)
+            .fillMaxWidth()
+            .background(PixelFrameCard)
+            .border(2.dp, PixelDarkInk)
+            .padding(8.dp)
     ) {
-        // Solid Pixel Drop Shadow
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 3.dp, y = 3.dp)
-                .background(PixelDarkInk)
-        )
-
-        // Polaroid Frame Card
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(PixelFrameCard)
-                .border(2.dp, PixelDarkInk)
-                .padding(8.dp)
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
                 // Washi Tape Pixel
                 Box(
                     modifier = Modifier
@@ -150,5 +139,4 @@ fun PolaroidFrame(
                 )
             }
         }
-    }
 }

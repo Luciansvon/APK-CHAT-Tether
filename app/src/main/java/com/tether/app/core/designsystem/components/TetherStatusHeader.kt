@@ -60,16 +60,21 @@ fun TetherStatusHeader(
     onVaultClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
+    val pulseAlpha = if (isP2pActive) {
+        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+        val alpha by infiniteTransition.animateFloat(
+            initialValue = 0.3f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1000),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulseAlpha"
+        )
+        alpha
+    } else {
+        1.0f
+    }
 
     val avatarBitmap = remember(avatarUri) {
         BitmapLoader.decodeSampledAvatar(avatarUri, reqSizePx = 128)
@@ -97,38 +102,27 @@ fun TetherStatusHeader(
                 modifier = Modifier.clickable { onProfileClick() }
             ) {
                 Box(
-                    modifier = Modifier.size(42.dp)
+                    modifier = Modifier
+                        .size(42.dp)
+                        .pixelShadow(2.dp, 2.dp)
+                        .background(Color.White)
+                        .border(2.dp, PixelDarkInk),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Solid shadow
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .offset(x = 2.dp, y = 2.dp)
-                            .background(PixelDarkInk)
-                    )
-                    // Patch Avatar Box
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .background(Color.White)
-                            .border(2.dp, PixelDarkInk),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (avatarBitmap != null) {
-                            Image(
-                                bitmap = avatarBitmap,
-                                contentDescription = "Partner Avatar",
-                                modifier = Modifier.size(38.dp),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_tether_patch),
-                                contentDescription = "Partner Avatar",
-                                modifier = Modifier.size(34.dp),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
+                    if (avatarBitmap != null) {
+                        Image(
+                            bitmap = avatarBitmap,
+                            contentDescription = "Partner Avatar",
+                            modifier = Modifier.size(38.dp),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_tether_patch),
+                            contentDescription = "Partner Avatar",
+                            modifier = Modifier.size(34.dp),
+                            contentScale = ContentScale.Crop
+                        )
                     }
 
                     // Square Pixel Online Indicator
@@ -188,80 +182,59 @@ fun TetherStatusHeader(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Mood Badge Kotak (Height 34.dp)
-                Box(modifier = Modifier.height(34.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .offset(x = 2.dp, y = 2.dp)
-                            .background(PixelDarkInk)
+                Box(
+                    modifier = Modifier
+                        .height(34.dp)
+                        .pixelShadow(2.dp, 2.dp)
+                        .background(PixelWashiTint)
+                        .border(1.5.dp, PixelDarkInk)
+                        .clickable { onProfileClick() }
+                        .padding(horizontal = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = moodPhase.replace(Regex("[^A-Za-z0-9 ]"), "").trim().uppercase(),
+                        fontFamily = PixelFont,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PixelDarkInk
                     )
-                    Box(
-                        modifier = Modifier
-                            .height(34.dp)
-                            .background(PixelWashiTint)
-                            .border(1.5.dp, PixelDarkInk)
-                            .clickable { onProfileClick() }
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = moodPhase.replace(Regex("[^A-Za-z0-9 ]"), "").trim().uppercase(),
-                            fontFamily = PixelFont,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = PixelDarkInk
-                        )
-                    }
                 }
 
                 // Tombol Scrapbook Vault (⊞) Kotak (Size 34.dp)
-                Box(modifier = Modifier.size(34.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .offset(x = 2.dp, y = 2.dp)
-                            .background(PixelDarkInk)
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .pixelShadow(2.dp, 2.dp)
+                        .background(Color.White)
+                        .border(2.dp, PixelDarkInk)
+                        .clickable { onVaultClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_pixel_grid),
+                        contentDescription = "Scrapbook Vault",
+                        modifier = Modifier.size(16.dp),
+                        tint = PixelDarkInk
                     )
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(Color.White)
-                            .border(2.dp, PixelDarkInk)
-                            .clickable { onVaultClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_pixel_grid),
-                            contentDescription = "Scrapbook Vault",
-                            modifier = Modifier.size(16.dp),
-                            tint = PixelDarkInk
-                        )
-                    }
                 }
 
                 // Tombol Benang Tether Vector Kotak (Size 34.dp)
-                Box(modifier = Modifier.size(34.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .offset(x = 2.dp, y = 2.dp)
-                            .background(PixelDarkInk)
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .pixelShadow(2.dp, 2.dp)
+                        .background(Color.White)
+                        .border(2.dp, PixelDarkInk)
+                        .clickable { onTouchpadClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_pixel_thread),
+                        contentDescription = "Tether Thread",
+                        modifier = Modifier.size(18.dp),
+                        tint = PixelDarkInk
                     )
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(Color.White)
-                            .border(2.dp, PixelDarkInk)
-                            .clickable { onTouchpadClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_pixel_thread),
-                            contentDescription = "Tether Thread",
-                            modifier = Modifier.size(18.dp),
-                            tint = PixelDarkInk
-                        )
-                    }
                 }
             }
         }

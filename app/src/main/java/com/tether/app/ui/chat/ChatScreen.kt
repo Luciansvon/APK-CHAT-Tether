@@ -45,6 +45,8 @@ import com.tether.app.core.designsystem.components.ScrapbookBottomBar
 import com.tether.app.core.designsystem.components.TetherStatusHeader
 import com.tether.app.core.designsystem.components.WashiRibbon
 import com.tether.app.core.designsystem.components.WhisperCassetteCard
+import com.tether.app.core.designsystem.components.pixelGridBackground
+import com.tether.app.core.designsystem.components.pixelShadow
 import com.tether.app.core.designsystem.theme.PixelDarkInk
 import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelGridDot
@@ -152,36 +154,16 @@ fun ChatScreen(
         },
         containerColor = PixelPaperBg
     ) { innerPadding ->
-        Box(
+        LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .pixelGridBackground(),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Pola Pixel Dither Grid
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val step = 16.dp.toPx()
-                var x = 0f
-                while (x < size.width) {
-                    var y = 0f
-                    while (y < size.height) {
-                        drawRect(
-                            color = PixelGridDot,
-                            topLeft = Offset(x, y),
-                            size = androidx.compose.ui.geometry.Size(1.5f, 1.5f)
-                        )
-                        y += step
-                    }
-                    x += step
-                }
-            }
-
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Pita Tanggal Pixel
+            // Pita Tanggal Pixel
                 item {
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         WashiRibbon(
@@ -380,36 +362,28 @@ fun ChatScreen(
             }
         }
     }
-}
 
 @Composable
 fun SystemAnnouncementCard(
     text: String
 ) {
-    Box {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 2.dp, y = 2.dp)
-                .background(PixelDarkInk)
+    Box(
+        modifier = Modifier
+            .pixelShadow(2.dp, 2.dp)
+            .background(Color(0xFFFFF6D6))
+            .border(1.5.dp, PixelDarkInk)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontFamily = PixelFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = 10.5.sp,
+            color = PixelDarkInk,
+            textAlign = TextAlign.Center,
+            lineHeight = 15.sp
         )
-        Box(
-            modifier = Modifier
-                .background(Color(0xFFFFF6D6))
-                .border(1.5.dp, PixelDarkInk)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = text,
-                fontFamily = PixelFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 10.5.sp,
-                color = PixelDarkInk,
-                textAlign = TextAlign.Center,
-                lineHeight = 15.sp
-            )
-        }
     }
 }
 
@@ -419,53 +393,47 @@ fun ChatBubbleThem(
     time: String,
     caption: String? = null
 ) {
-    Box(modifier = Modifier.widthIn(min = 120.dp, max = 270.dp)) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 3.dp, y = 3.dp)
-                .background(PixelDarkInk)
-        )
-        Box(
-            modifier = Modifier
-                .background(Color.White)
-                .border(2.dp, PixelDarkInk)
-                .padding(horizontal = 12.dp, vertical = 10.dp)
-        ) {
-            Column(modifier = Modifier.widthIn(min = 96.dp, max = 246.dp)) {
-                if (!caption.isNullOrBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFFFFECEB))
-                            .border(1.dp, PixelDarkInk)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = caption,
-                            fontFamily = PixelFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 8.5.sp,
-                            color = PixelHeartRed
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
+    Box(
+        modifier = Modifier
+            .widthIn(min = 120.dp, max = 270.dp)
+            .pixelShadow(3.dp, 3.dp)
+            .background(Color.White)
+            .border(2.dp, PixelDarkInk)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Column(modifier = Modifier.widthIn(min = 96.dp, max = 246.dp)) {
+            if (!caption.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xFFFFECEB))
+                        .border(1.dp, PixelDarkInk)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = caption,
+                        fontFamily = PixelFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 8.5.sp,
+                        color = PixelHeartRed
+                    )
                 }
-                Text(
-                    text = text,
-                    fontFamily = PixelFont,
-                    fontSize = 12.5.sp,
-                    lineHeight = 17.sp,
-                    color = PixelDarkInk
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = time,
-                    fontFamily = PixelFont,
-                    fontSize = 8.5.sp,
-                    color = PixelMutedInk,
-                    modifier = Modifier.align(Alignment.End)
-                )
+                Spacer(modifier = Modifier.height(6.dp))
             }
+            Text(
+                text = text,
+                fontFamily = PixelFont,
+                fontSize = 12.5.sp,
+                lineHeight = 17.sp,
+                color = PixelDarkInk
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = time,
+                fontFamily = PixelFont,
+                fontSize = 8.5.sp,
+                color = PixelMutedInk,
+                modifier = Modifier.align(Alignment.End)
+            )
         }
     }
 }
@@ -476,54 +444,48 @@ fun ChatBubbleMe(
     time: String,
     caption: String? = null
 ) {
-    Box(modifier = Modifier.widthIn(min = 120.dp, max = 270.dp)) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 3.dp, y = 3.dp)
-                .background(PixelDarkInk)
-        )
-        Box(
-            modifier = Modifier
-                .background(PixelHeartRed)
-                .border(2.dp, PixelDarkInk)
-                .padding(horizontal = 12.dp, vertical = 10.dp)
-        ) {
-            Column(modifier = Modifier.widthIn(min = 96.dp, max = 246.dp)) {
-                if (!caption.isNullOrBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .background(Color.White)
-                            .border(1.dp, PixelDarkInk)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = caption,
-                            fontFamily = PixelFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 8.5.sp,
-                            color = PixelDarkInk
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
+    Box(
+        modifier = Modifier
+            .widthIn(min = 120.dp, max = 270.dp)
+            .pixelShadow(3.dp, 3.dp)
+            .background(PixelHeartRed)
+            .border(2.dp, PixelDarkInk)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Column(modifier = Modifier.widthIn(min = 96.dp, max = 246.dp)) {
+            if (!caption.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .background(Color.White)
+                        .border(1.dp, PixelDarkInk)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = caption,
+                        fontFamily = PixelFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 8.5.sp,
+                        color = PixelDarkInk
+                    )
                 }
-                Text(
-                    text = text,
-                    fontFamily = PixelFont,
-                    fontSize = 12.5.sp,
-                    lineHeight = 17.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = time,
-                    fontFamily = PixelFont,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFFAF6F0),
-                    modifier = Modifier.align(Alignment.End)
-                )
+                Spacer(modifier = Modifier.height(6.dp))
             }
+            Text(
+                text = text,
+                fontFamily = PixelFont,
+                fontSize = 12.5.sp,
+                lineHeight = 17.sp,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = time,
+                fontFamily = PixelFont,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFFAF6F0),
+                modifier = Modifier.align(Alignment.End)
+            )
         }
     }
 }

@@ -36,6 +36,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tether.app.R
+import com.tether.app.core.designsystem.components.pixelGridBackground
+import com.tether.app.core.designsystem.components.pixelShadow
 import com.tether.app.core.designsystem.theme.PixelDarkInk
 import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelGridDot
@@ -57,6 +59,7 @@ fun TouchpadScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(PixelPaperBg)
+            .pixelGridBackground()
     ) {
         // Touch detector on background -> transmits HAPTIC_TOUCH coordinates over P2P
         Box(
@@ -74,52 +77,24 @@ fun TouchpadScreen(
                 }
         )
 
-        // Pixel Background Grid
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val step = 16.dp.toPx()
-            var x = 0f
-            while (x < size.width) {
-                var y = 0f
-                while (y < size.height) {
-                    drawRect(
-                        color = PixelGridDot,
-                        topLeft = Offset(x, y),
-                        size = Size(1.5f, 1.5f)
-                    )
-                    y += step
-                }
-                x += step
-            }
-        }
-
         // Tombol Kembali Pixel Kotak
         Box(
             modifier = Modifier
                 .statusBarsPadding()
                 .padding(top = 10.dp, start = 16.dp)
                 .size(38.dp)
+                .pixelShadow(2.dp, 2.dp)
+                .background(Color.White)
+                .border(2.dp, PixelDarkInk)
+                .clickable { onBackClick() },
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = 2.dp, y = 2.dp)
-                    .background(PixelDarkInk)
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Kembali",
+                tint = PixelDarkInk,
+                modifier = Modifier.size(18.dp)
             )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(Color.White)
-                    .border(2.dp, PixelDarkInk)
-                    .clickable { onBackClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Kembali",
-                    tint = PixelDarkInk,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
         }
 
         // Card Petunjuk di Tengah
