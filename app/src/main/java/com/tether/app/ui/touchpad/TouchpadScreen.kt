@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -29,6 +30,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,6 +43,7 @@ import com.tether.app.core.designsystem.theme.PixelGridDot
 import com.tether.app.core.designsystem.theme.PixelHeartRed
 import com.tether.app.core.designsystem.theme.PixelPaperBg
 import com.tether.app.core.designsystem.theme.PixelSecondaryInk
+import com.tether.app.core.overlay.TetherOverlayManager
 import com.tether.app.core.sensor.HapticResonanceEngine
 
 @Composable
@@ -48,23 +51,30 @@ fun TouchpadScreen(
     hapticEngine: HapticResonanceEngine,
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     var touchPoint by remember { mutableStateOf<Offset?>(null) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(PixelPaperBg)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = { offset ->
-                        touchPoint = offset
-                        hapticEngine.playHeartbeatResonance()
-                        tryAwaitRelease()
-                        touchPoint = null
-                    }
-                )
-            }
     ) {
+        // Touch detector on background
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = { offset ->
+                            touchPoint = offset
+                            hapticEngine.playHeartbeatResonance()
+                            tryAwaitRelease()
+                            touchPoint = null
+                        }
+                    )
+                }
+        )
+
         // Pixel Background Grid
         Canvas(modifier = Modifier.fillMaxSize()) {
             val step = 16.dp.toPx()
@@ -158,6 +168,44 @@ fun TouchpadScreen(
                         lineHeight = 15.sp,
                         textAlign = TextAlign.Center
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Tombol Uji 100% Floating Compose Overlay
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(38.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .offset(x = 2.dp, y = 2.dp)
+                                .background(PixelDarkInk)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .background(PixelHeartRed)
+                                .border(1.5.dp, PixelDarkInk)
+                                .clickable {
+                                    android.util.Log.d("TetherOverlay", "TouchpadScreen: Uji Floating Overlay button tapped!")
+                                    TetherOverlayManager.showTugOverlay(
+                                        context = context,
+                                        partnerName = "Anisa"
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "◆ ⚡ UJI FLOATING OVERLAY ⚡ ◆",
+                                fontFamily = PixelFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
                 }
             }
         }

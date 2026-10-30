@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
@@ -23,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -63,6 +65,8 @@ fun ChatScreen(
     val isP2pActive by viewModel.p2pManager.isP2pConnected.collectAsState()
     val playingAudioId by viewModel.playingAudioId.collectAsState()
     var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showVaultSheet by remember { mutableStateOf(false) }
+    var vaultInitialTab by remember { mutableIntStateOf(0) }
 
     if (showEditProfileDialog) {
         EditProfileDialog(
@@ -82,6 +86,13 @@ fun ChatScreen(
         )
     }
 
+    if (showVaultSheet) {
+        ScrapbookVaultSheet(
+            initialTab = vaultInitialTab,
+            onDismiss = { showVaultSheet = false }
+        )
+    }
+
     Scaffold(
         topBar = {
             TetherStatusHeader(
@@ -92,7 +103,10 @@ fun ChatScreen(
                 avatarUri = partnerProfile?.partnerAvatarUri,
                 onProfileClick = { showEditProfileDialog = true },
                 onTouchpadClick = onNavigateToTouchpad,
-                onQrClick = onNavigateToPairing
+                onVaultClick = {
+                    vaultInitialTab = 0
+                    showVaultSheet = true
+                }
             )
         },
         bottomBar = {
@@ -101,7 +115,10 @@ fun ChatScreen(
                 onInputChange = viewModel::onInputTextChange,
                 onSendClick = viewModel::sendTextMessage,
                 onCameraClick = viewModel::sendPolaroidSample,
-                onCouponClick = onNavigateToCoupons
+                onCouponClick = {
+                    vaultInitialTab = 0
+                    showVaultSheet = true
+                }
             )
         },
         containerColor = PixelPaperBg
@@ -131,8 +148,8 @@ fun ChatScreen(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Pita Tanggal Pixel
                 item {
@@ -284,9 +301,9 @@ fun ChatScreen(
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "FOTO SPESIAL",
+                                            text = "[ GOSOK UNTUK BUKA FOTO ]",
                                             fontFamily = PixelFont,
-                                            fontSize = 11.sp,
+                                            fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = PixelDarkInk
                                         )
@@ -315,7 +332,7 @@ fun ChatBubbleThem(
     text: String,
     time: String
 ) {
-    Box(modifier = Modifier.width(260.dp)) {
+    Box(modifier = Modifier.widthIn(min = 120.dp, max = 270.dp)) {
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -324,12 +341,11 @@ fun ChatBubbleThem(
         )
         Box(
             modifier = Modifier
-                .fillMaxWidth()
                 .background(Color.White)
                 .border(2.dp, PixelDarkInk)
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
-            Column {
+            Column(modifier = Modifier.widthIn(min = 96.dp, max = 246.dp)) {
                 Text(
                     text = text,
                     fontFamily = PixelFont,
@@ -355,7 +371,7 @@ fun ChatBubbleMe(
     text: String,
     time: String
 ) {
-    Box(modifier = Modifier.width(260.dp)) {
+    Box(modifier = Modifier.widthIn(min = 120.dp, max = 270.dp)) {
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -364,12 +380,11 @@ fun ChatBubbleMe(
         )
         Box(
             modifier = Modifier
-                .fillMaxWidth()
                 .background(PixelHeartRed)
                 .border(2.dp, PixelDarkInk)
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
-            Column {
+            Column(modifier = Modifier.widthIn(min = 96.dp, max = 246.dp)) {
                 Text(
                     text = text,
                     fontFamily = PixelFont,
@@ -381,8 +396,9 @@ fun ChatBubbleMe(
                 Text(
                     text = time,
                     fontFamily = PixelFont,
-                    fontSize = 8.5.sp,
-                    color = Color(0xFFFFD4D4),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFAF6F0),
                     modifier = Modifier.align(Alignment.End)
                 )
             }

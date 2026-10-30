@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -13,8 +14,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,131 +39,144 @@ fun ScrapbookBottomBar(
     onCouponClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .background(PixelPaperBg)
-            .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Tombol Kamera Pixel Kotak
-        Box(modifier = Modifier.size(40.dp)) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = 2.dp, y = 2.dp)
-                    .background(PixelDarkInk)
-            )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(Color.White)
-                    .border(2.dp, PixelDarkInk)
-                    .clickable { onCameraClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_pixel_camera),
-                    contentDescription = "Camera",
-                    modifier = Modifier.size(20.dp),
-                    tint = PixelDarkInk
-                )
-            }
-        }
-
-        // Tombol Buku Kupon Pixel Kotak
-        Box(modifier = Modifier.size(40.dp)) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = 2.dp, y = 2.dp)
-                    .background(PixelDarkInk)
-            )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(Color.White)
-                    .border(2.dp, PixelDarkInk)
-                    .clickable { onCouponClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_pixel_coupon),
-                    contentDescription = "Coupons",
-                    modifier = Modifier.size(20.dp),
-                    tint = PixelDarkInk
-                )
-            }
-        }
-
-        // Kotak Input Memo Pixel
+        // Garis Pembatas Struktural Atas Bottom Bar (2.dp Solid Pixel Dark Ink)
         Box(
             modifier = Modifier
-                .weight(1f)
-                .height(40.dp)
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(PixelDarkInk)
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = 2.dp, y = 2.dp)
-                    .background(PixelDarkInk)
-            )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(Color.White)
-                    .border(2.dp, PixelDarkInk)
-                    .padding(horizontal = 12.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (inputText.isEmpty()) {
-                    Text(
-                        text = "Tulis memo...",
-                        fontFamily = PixelFont,
-                        fontSize = 11.sp,
-                        color = PixelMutedInk
+            // Tombol Kamera Pixel Kotak
+            Box(modifier = Modifier.size(40.dp)) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .offset(x = 2.dp, y = 2.dp)
+                        .background(PixelDarkInk)
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.White)
+                        .border(2.dp, PixelDarkInk)
+                        .clickable { onCameraClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_pixel_camera),
+                        contentDescription = "Camera",
+                        modifier = Modifier.size(20.dp),
+                        tint = PixelDarkInk
                     )
                 }
-                BasicTextField(
-                    value = inputText,
-                    onValueChange = onInputChange,
-                    textStyle = TextStyle(
-                        fontFamily = PixelFont,
-                        fontSize = 12.sp,
-                        color = PixelDarkInk
-                    ),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
-        }
 
-        // Tombol Kirim Pixel Kotak
-        Box(modifier = Modifier.size(40.dp)) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = 2.dp, y = 2.dp)
-                    .background(Color(0xFF38354A))
-            )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(PixelDarkInk)
-                    .border(2.dp, PixelDarkInk)
-                    .clickable {
-                        if (inputText.isNotBlank()) onSendClick()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp)
+            // Tombol Buku Kupon Pixel Kotak
+            Box(modifier = Modifier.size(40.dp)) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .offset(x = 2.dp, y = 2.dp)
+                        .background(PixelDarkInk)
                 )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.White)
+                        .border(2.dp, PixelDarkInk)
+                        .clickable { onCouponClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_pixel_coupon),
+                        contentDescription = "Coupons",
+                        modifier = Modifier.size(20.dp),
+                        tint = PixelDarkInk
+                    )
+                }
+            }
+
+            // Kotak Input Memo Pixel
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .offset(x = 2.dp, y = 2.dp)
+                        .background(PixelDarkInk)
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.White)
+                        .border(2.dp, PixelDarkInk)
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (inputText.isEmpty()) {
+                        Text(
+                            text = "Tulis memo...",
+                            fontFamily = PixelFont,
+                            fontSize = 11.sp,
+                            color = PixelMutedInk
+                        )
+                    }
+                    BasicTextField(
+                        value = inputText,
+                        onValueChange = onInputChange,
+                        textStyle = TextStyle(
+                            fontFamily = PixelFont,
+                            fontSize = 12.sp,
+                            color = PixelDarkInk
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Tombol Kirim Pixel Kotak dengan Icon Pixel Send
+            Box(modifier = Modifier.size(40.dp)) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .offset(x = 2.dp, y = 2.dp)
+                        .background(Color(0xFF38354A))
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(PixelDarkInk)
+                        .border(2.dp, PixelDarkInk)
+                        .clickable {
+                            if (inputText.isNotBlank()) onSendClick()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_pixel_send),
+                        contentDescription = "Send",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }

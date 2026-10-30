@@ -33,4 +33,14 @@ class HapticResonanceEngine(private val context: Context) {
         val effect = VibrationEffect.createOneShot(35, VibrationEffect.DEFAULT_AMPLITUDE)
         vibrator.vibrate(effect)
     }
+
+    // Tarikan Benang Tether (Electric Tug! ⚡)
+    fun playTugHaptic() {
+        if (!vibrator.hasVibrator()) return
+
+        val timings = longArrayOf(0, 45, 60, 45, 60, 120) // 3-stage crisp rhythmic pull
+        val amplitudes = intArrayOf(0, 255, 0, 255, 0, 255)
+        val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+        vibrator.vibrate(effect)
+    }
 }

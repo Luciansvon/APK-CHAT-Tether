@@ -49,7 +49,9 @@ fun PolaroidFrame(
     )
 
     Box(
-        modifier = modifier.width(235.dp)
+        modifier = modifier
+            .padding(top = 12.dp)
+            .width(235.dp)
     ) {
         // Solid Pixel Drop Shadow
         Box(
@@ -105,7 +107,7 @@ fun PolaroidFrame(
                                 }
                         ) {
                             Text(
-                                text = "◆ USAP EMBUN FOTO ◆",
+                                text = "[ GOSOK BUKA FOTO ]",
                                 fontFamily = PixelFont,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
