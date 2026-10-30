@@ -36,7 +36,7 @@ import com.tether.app.core.designsystem.theme.PixelWashiTint
 
 @Composable
 fun PolaroidFrame(
-    caption: String,
+    caption: String? = null,
     timestamp: String,
     modifier: Modifier = Modifier,
     rotation: Float = 0f,
@@ -114,19 +114,20 @@ fun PolaroidFrame(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Caption Pixel Monospace
-                Text(
-                    text = "\"$caption\"",
-                    fontFamily = PixelFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    color = PixelDarkInk,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (!caption.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    // Caption Pixel Monospace
+                    Text(
+                        text = "\"$caption\"",
+                        fontFamily = PixelFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = PixelDarkInk,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 17.sp,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(4.dp))
 

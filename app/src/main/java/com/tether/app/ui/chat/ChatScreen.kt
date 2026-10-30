@@ -52,6 +52,7 @@ import com.tether.app.core.designsystem.components.LevelUpDialog
 import com.tether.app.core.designsystem.components.PolaroidFrame
 import com.tether.app.core.designsystem.components.ScrapbookBottomBar
 import com.tether.app.core.designsystem.components.TetherStatusHeader
+import com.tether.app.core.designsystem.components.VoiceNoteBubble
 import com.tether.app.core.designsystem.components.WashiRibbon
 import com.tether.app.core.designsystem.components.WhisperCassetteCard
 import com.tether.app.core.designsystem.components.pixelGridBackground
@@ -63,6 +64,10 @@ import com.tether.app.core.designsystem.theme.PixelHeartRed
 import com.tether.app.core.designsystem.theme.PixelMutedInk
 import com.tether.app.core.designsystem.theme.PixelPaperBg
 import com.tether.app.core.designsystem.util.BitmapLoader
+import com.tether.app.ui.chat.components.GeneratePixelArtDialog
+import com.tether.app.ui.chat.components.PhotoCaptionDialog
+import com.tether.app.ui.chat.components.PhotoDetailViewerDialog
+import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.tether.app.core.designsystem.theme.PixelSecondaryInk
@@ -99,6 +104,11 @@ fun ChatScreen(
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showVaultSheet by remember { mutableStateOf(false) }
     var vaultInitialTab by remember { mutableIntStateOf(0) }
+    var selectedPhotoUriForCaption by remember { mutableStateOf<Uri?>(null) }
+    var viewingPhotoPath by remember { mutableStateOf<String?>(null) }
+    var viewingPhotoCaption by remember { mutableStateOf<String?>(null) }
+    var showAiPixelDialog by remember { mutableStateOf(false) }
+    val isGeneratingAi by viewModel.isGeneratingAvatar.collectAsState()
     val listState = rememberLazyListState()
     val context = LocalContext.current
 
@@ -106,9 +116,7 @@ fun ChatScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            val caption = inputText.takeIf { it.isNotBlank() }
-            viewModel.sendPhotoMessage(context, uri, caption)
-            if (caption != null) viewModel.onInputTextChange("")
+            selectedPhotoUriForCaption = uri
         }
     }
 
@@ -159,6 +167,11 @@ fun ChatScreen(
             onToggleAudio = { audioId -> viewModel.toggleAudioPlayback(audioId) },
             pairingPayloadProvider = { viewModel.getLocalPairingPayload() },
             onClaimCoupon = { couponId -> viewModel.claimCoupon(couponId) },
+            onCreateCoupon = { title, desc -> viewModel.createCustomCoupon(title, desc) },
+            onPhotoClick = { path, caption ->
+                viewingPhotoPath = path
+                viewingPhotoCaption = caption
+            },
             onLeaveRoom = {
                 showVaultSheet = false
                 viewModel.leaveRoom()
@@ -208,6 +221,9 @@ fun ChatScreen(
                 onCouponClick = {
                     vaultInitialTab = 0
                     showVaultSheet = true
+                },
+                onAiPixelClick = {
+                    showAiPixelDialog = true
                 },
                 isRecordingAudio = isRecordingAudio,
                 recordingDurationSeconds = recordingDurationSeconds,
@@ -404,10 +420,14 @@ fun ChatScreen(
                         "POLAROID" -> {
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = bubbleAlignment) {
                                 PolaroidFrame(
-                                    caption = message.caption ?: "Momen kita",
+                                    caption = message.caption,
                                     timestamp = timeStr,
                                     isFoggy = message.isFoggy,
-                                    rotation = message.rotation
+                                    rotation = message.rotation,
+                                    modifier = Modifier.clickable {
+                                        viewingPhotoPath = message.content
+                                        viewingPhotoCaption = message.caption
+                                    }
                                 ) {
                                     val photoBitmap = produceState<ImageBitmap?>(initialValue = null, key1 = message.content) {
                                         value = withContext(Dispatchers.IO) {
@@ -451,10 +471,12 @@ fun ChatScreen(
                         }
                         "WHISPER" -> {
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = bubbleAlignment) {
-                                WhisperCassetteCard(
+                                VoiceNoteBubble(
                                     duration = message.duration ?: "0:10",
                                     isPlaying = playingAudioId == message.id,
                                     onPlayClick = { viewModel.toggleAudioPlayback(message.id) },
+                                    isMe = message.senderId == "ME",
+                                    isDelivered = message.isDelivered,
                                     rotation = message.rotation
                                 )
                             }
@@ -473,7 +495,40 @@ fun ChatScreen(
                 }
             }
         }
+
+    selectedPhotoUriForCaption?.let { uri ->
+        PhotoCaptionDialog(
+            imageUri = uri,
+            onDismiss = { selectedPhotoUriForCaption = null },
+            onConfirmSend = { caption ->
+                viewModel.sendPhotoMessage(context, uri, caption)
+                selectedPhotoUriForCaption = null
+            }
+        )
     }
+
+    viewingPhotoPath?.let { path ->
+        PhotoDetailViewerDialog(
+            imagePath = path,
+            caption = viewingPhotoCaption,
+            onDismiss = {
+                viewingPhotoPath = null
+                viewingPhotoCaption = null
+            }
+        )
+    }
+
+    if (showAiPixelDialog) {
+        GeneratePixelArtDialog(
+            isLoading = isGeneratingAi,
+            onDismiss = { showAiPixelDialog = false },
+            onGenerate = { prompt ->
+                viewModel.generateAiPixelArt(context, prompt)
+                showAiPixelDialog = false
+            }
+        )
+    }
+}
 
 @Composable
 fun SystemAnnouncementCard(

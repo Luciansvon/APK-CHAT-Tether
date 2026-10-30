@@ -52,8 +52,10 @@ import com.tether.app.R
 import com.tether.app.core.database.TetherDatabase
 import com.tether.app.core.designsystem.components.FavorCouponTicket
 import com.tether.app.core.designsystem.components.PolaroidFrame
+import com.tether.app.core.designsystem.components.VoiceNoteBubble
 import com.tether.app.core.designsystem.components.WashiRibbon
-import com.tether.app.core.designsystem.components.WhisperCassetteCard
+import com.tether.app.core.designsystem.components.pixelShadow
+import com.tether.app.ui.chat.components.CreateCouponDialog
 import com.tether.app.core.designsystem.theme.PixelDarkInk
 import com.tether.app.core.designsystem.theme.PixelFont
 import com.tether.app.core.designsystem.theme.PixelHeartRed
@@ -76,6 +78,8 @@ fun ScrapbookVaultSheet(
     pairingPayloadProvider: (() -> PairingPayload)? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     onClaimCoupon: ((String) -> Unit)? = null,
+    onCreateCoupon: ((title: String, description: String) -> Unit)? = null,
+    onPhotoClick: ((imagePath: String, caption: String?) -> Unit)? = null,
     onLeaveRoom: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
@@ -90,6 +94,7 @@ fun ScrapbookVaultSheet(
     // 0: Kupon, 1: Memori (Polaroid & Kaset), 2: Kamar & Kamera
     var selectedTab by remember { mutableIntStateOf(initialTab) }
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showCreateCouponDialog by remember { mutableStateOf(false) }
     val roomCode = remember { KeystoreManager.getRoomCode(context)?.uppercase() ?: "-" }
 
     LaunchedEffect(Unit) {
@@ -229,6 +234,27 @@ fun ScrapbookVaultSheet(
                             WashiRibbon(text = "◆ DOMPET KUPON BERDUA ◆")
                         }
 
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .height(38.dp)
+                                    .pixelShadow(2.dp, 2.dp)
+                                    .background(PixelHeartRed)
+                                    .border(2.dp, PixelDarkInk)
+                                    .clickable { showCreateCouponDialog = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "+ BUAT KUPON BARU",
+                                    fontFamily = PixelFont,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+
                         if (coupons.isEmpty()) {
                             item {
                                 Box(
@@ -277,12 +303,12 @@ fun ScrapbookVaultSheet(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         item {
-                            WashiRibbon(text = "◆ DINDING FOTO & BISIKAN ◆")
+                            WashiRibbon(text = "◆ DINDING FOTO & SUARA ◆")
                         }
 
                         if (polaroidAndAudioMessages.isEmpty()) {
                             item {
-                                // Default Polaroid & Kaset Contoh
+                                // Default Polaroid & Suara Contoh
                                 PolaroidFrame(
                                     caption = "nanti malem ke sini yuk?",
                                     timestamp = "Tersimpan di Brankas",
@@ -315,7 +341,7 @@ fun ScrapbookVaultSheet(
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                WhisperCassetteCard(
+                                VoiceNoteBubble(
                                     duration = "0:14",
                                     isPlaying = playingAudioId == "vault_default_sample",
                                     onPlayClick = { onToggleAudio?.invoke("vault_default_sample") }
@@ -325,10 +351,12 @@ fun ScrapbookVaultSheet(
                             items(polaroidAndAudioMessages, key = { it.id }) { msg ->
                                 if (msg.type == "POLAROID") {
                                     PolaroidFrame(
-                                        caption = msg.caption ?: "Momen kita",
+                                        caption = msg.caption,
                                         timestamp = "Tersimpan",
                                         isFoggy = false,
-                                        modifier = Modifier.padding(top = 12.dp)
+                                        modifier = Modifier
+                                            .padding(top = 12.dp)
+                                            .clickable { onPhotoClick?.invoke(msg.content, msg.caption) }
                                     ) {
                                         val thumb = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
                                             initialValue = null,
@@ -373,7 +401,7 @@ fun ScrapbookVaultSheet(
                                         }
                                     }
                                 } else {
-                                    WhisperCassetteCard(
+                                    VoiceNoteBubble(
                                         duration = msg.duration ?: "0:10",
                                         isPlaying = playingAudioId == msg.id,
                                         onPlayClick = { onToggleAudio?.invoke(msg.id) }
@@ -513,5 +541,30 @@ fun ScrapbookVaultSheet(
                 }
             }
         }
+    }
+
+    if (showCreateCouponDialog) {
+        CreateCouponDialog(
+            onDismiss = { showCreateCouponDialog = false },
+            onCreateCoupon = { title, desc ->
+                showCreateCouponDialog = false
+                if (onCreateCoupon != null) {
+                    onCreateCoupon(title, desc)
+                } else {
+                    coroutineScope.launch {
+                        withContext(Dispatchers.IO) {
+                            val id = "c_${java.util.UUID.randomUUID().toString().take(8)}"
+                            db.couponDao().insertCoupon(
+                                com.tether.app.core.database.entity.CouponEntity(
+                                    id = id,
+                                    title = title,
+                                    description = desc
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        )
     }
 }

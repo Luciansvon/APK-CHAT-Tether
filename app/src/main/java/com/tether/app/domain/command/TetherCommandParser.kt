@@ -22,7 +22,8 @@ object TetherCommandParser {
         CommandSuggestion("/tug", "/tug [pesan]", "Tarik tali Tether & getaran haptic"),
         CommandSuggestion("/peluk", "/peluk <pesan>", "Mode Peluk (dengerin aja tanpa solusi)"),
         CommandSuggestion("/solusi", "/solusi <pesan>", "Butuh Solusi (minta masukan objektif)"),
-        CommandSuggestion("/dadu", "/dadu [opsi1, opsi2, ...]", "Putar dadu anti-'Terserah'")
+        CommandSuggestion("/roulette", "/roulette [opsi1, opsi2, ...]", "Putar roulette pilihan acak sejati"),
+        CommandSuggestion("/dadu", "/dadu [opsi1, opsi2, ...]", "Putar roulette pilihan acak sejati")
     )
 
     fun isCommand(text: String): Boolean {
@@ -75,17 +76,28 @@ object TetherCommandParser {
                     TetherCommand.Solusi(rest)
                 }
             }
-            "/dadu" -> {
+            "/roulette", "/dadu" -> {
                 val options = if (rest.isEmpty()) {
                     listOf("1", "2", "3", "4", "5", "6")
                 } else {
-                    rest.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                    val splitByDelim = rest.split(Regex("[,;/|\\n]+"))
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                    if (splitByDelim.size > 1) {
+                        splitByDelim
+                    } else {
+                        val splitBySpace = rest.split(Regex("\\s+"))
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() }
+                        if (splitBySpace.size > 1) splitBySpace else splitByDelim
+                    }
                 }
 
                 if (options.isEmpty()) {
-                    TetherCommand.Unknown(trimmed, "Format: /dadu [opsi1, opsi2, ...]")
+                    TetherCommand.Unknown(trimmed, "Format: /roulette [opsi1, opsi2, ...]")
                 } else {
-                    val chosen = options.random()
+                    val secureRng = java.security.SecureRandom()
+                    val chosen = options[secureRng.nextInt(options.size)]
                     TetherCommand.Dadu(options, chosen)
                 }
             }

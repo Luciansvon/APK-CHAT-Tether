@@ -73,11 +73,15 @@ class TetherCommandParserTest {
         assertEquals(6, daduDefault.options.size)
         assertTrue(daduDefault.options.contains(daduDefault.chosen))
 
-        val cmdCustom = TetherCommandParser.parse("/dadu Ramen, Nasi Padang, Burger")
+        val cmdCustom = TetherCommandParser.parse("/roulette Ramen, Nasi Padang, Burger")
         assertTrue(cmdCustom is TetherCommand.Dadu)
         val daduCustom = cmdCustom as TetherCommand.Dadu
         assertEquals(listOf("Ramen", "Nasi Padang", "Burger"), daduCustom.options)
         assertTrue(daduCustom.options.contains(daduCustom.chosen))
+
+        val cmdSpace = TetherCommandParser.parse("/roulette ayam bebek ikan")
+        assertTrue(cmdSpace is TetherCommand.Dadu)
+        assertEquals(listOf("ayam", "bebek", "ikan"), (cmdSpace as TetherCommand.Dadu).options)
     }
 
     @Test
@@ -87,6 +91,6 @@ class TetherCommandParserTest {
         assertEquals("/mood", suggestions[0].command)
 
         val all = TetherCommandParser.getSuggestions("/")
-        assertEquals(5, all.size)
+        assertEquals(6, all.size)
     }
 }

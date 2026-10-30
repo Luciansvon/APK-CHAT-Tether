@@ -15,6 +15,9 @@ interface CouponDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCoupons(coupons: List<CouponEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCoupon(coupon: CouponEntity)
+
     @Query("UPDATE coupons SET isClaimed = 1, claimedAt = :timestamp WHERE id = :id")
     suspend fun claimCoupon(id: String, timestamp: Long)
 

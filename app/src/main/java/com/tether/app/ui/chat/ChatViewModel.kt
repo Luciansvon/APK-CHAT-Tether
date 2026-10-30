@@ -45,7 +45,9 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import android.util.Log
 import com.tether.app.core.network.config.CloudConfig
+import com.tether.app.core.notification.TetherNotificationHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -565,7 +567,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         id = UUID.randomUUID().toString(),
                         senderId = "ME",
                         type = "SYSTEM",
-                        content = "🎲 DADU ANTI-TERSERAH:\nOpsi: [${command.options.joinToString(", ")}]\n▶ HASIL KELUAR: [ ${command.chosen.uppercase()} ] ★",
+                        content = "🎡 ROULETTE KEPUTUSAN:\nOpsi: [${command.options.joinToString(", ")}]\n▶ HASIL PUTARAN: [ ${command.chosen.uppercase()} ] ★",
                         lamportTimestamp = clock,
                         localTimestamp = System.currentTimeMillis()
                     )
@@ -697,7 +699,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
                 val clock = currentLamportClock.incrementAndGet()
                 val msgId = UUID.randomUUID().toString()
-                val finalCaption = caption?.takeIf { it.isNotBlank() } ?: "Momen kita"
+                val finalCaption = caption?.trim()?.takeIf { it.isNotEmpty() }
                 val msg = MessageEntity(
                     id = msgId,
                     senderId = "ME",
@@ -1054,6 +1056,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 messageDao.insertMessage(msg)
                 hapticEngine.playHeartbeatResonance()
+
+                val partnerName = partnerProfile.value?.partnerName ?: "Pasangan"
+                when (packet.type) {
+                    "TEXT" -> TetherNotificationHelper.showNotification(
+                        context = getApplication(),
+                        title = partnerName,
+                        body = packet.content
+                    )
+                    "POLAROID" -> TetherNotificationHelper.showNotification(
+                        context = getApplication(),
+                        title = partnerName,
+                        body = if (!packet.caption.isNullOrBlank()) "📷 Foto: ${packet.caption}" else "📷 Mengirim foto polaroid"
+                    )
+                    "WHISPER" -> TetherNotificationHelper.showNotification(
+                        context = getApplication(),
+                        title = partnerName,
+                        body = "🎤 Pesan suara (${packet.duration ?: "0:10"})"
+                    )
+                }
             }
             "MOOD_UPDATE" -> {
                 val current = profileDao.getProfile()
@@ -1101,6 +1122,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     isDelivered = true
                 )
                 messageDao.insertMessage(msg)
+                TetherNotificationHelper.showNotification(
+                    context = getApplication(),
+                    title = "⚡ Tether Sinyal",
+                    body = "$partnerName menarik tali Tether kamu!"
+                )
             }
             "SYSTEM" -> {
                 soundManager.playReceiveSound()
@@ -1134,6 +1160,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 messageDao.insertMessage(msg)
                 hapticEngine.playTugHaptic()
+                val partnerName = partnerProfile.value?.partnerName ?: "Pasangan"
+                TetherNotificationHelper.showNotification(
+                    context = getApplication(),
+                    title = "🎟️ Kupon Diklaim",
+                    body = "$partnerName mengklaim kupon: ${packet.caption ?: packet.content}"
+                )
+            }
+            "COUPON_CREATE" -> {
+                soundManager.playReceiveSound()
+                hapticEngine.playHeartbeatResonance()
+                addInteractionXp(30L, isCoupon = true)
+                try {
+                    val parts = packet.content.split("|")
+                    if (parts.size >= 3) {
+                        val coupon = CouponEntity(
+                            id = parts[0],
+                            title = parts[1],
+                            description = parts[2],
+                            isClaimed = false,
+                            claimedAt = null,
+                            rotation = (-3..3).random().toFloat()
+                        )
+                        couponDao.insertCoupon(coupon)
+                    }
+                } catch (e: Exception) {
+                    Log.e("ChatViewModel", "Gagal menyimpan kupon baru: ${e.message}")
+                }
+                val partnerName = partnerProfile.value?.partnerName ?: "Pasangan"
+                TetherNotificationHelper.showNotification(
+                    context = getApplication(),
+                    title = "🎟️ Kupon Baru",
+                    body = "$partnerName membuat kupon baru: ${packet.caption ?: packet.content}"
+                )
             }
             "HAPTIC_TOUCH" -> {
                 hapticEngine.playTouchPulse()
@@ -1176,7 +1235,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     senderId = "ME",
                     type = "POLAROID",
                     content = uploadedUrl,
-                    caption = caption ?: "Momen kita",
+                    caption = caption?.trim()?.takeIf { it.isNotEmpty() },
                     lamportTimestamp = clock,
                     localTimestamp = System.currentTimeMillis(),
                     isFoggy = isFoggy,
@@ -1194,6 +1253,62 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         lamportTimestamp = msg.lamportTimestamp
                     )
                 )
+            }
+        }
+    }
+
+    fun createCustomCoupon(title: String, description: String) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            val couponId = "c_${UUID.randomUUID().toString().take(8)}"
+            val cleanTitle = title.trim()
+            val cleanDesc = description.trim()
+            val coupon = CouponEntity(
+                id = couponId,
+                title = cleanTitle,
+                description = cleanDesc,
+                isClaimed = false,
+                claimedAt = null,
+                rotation = (-3..3).random().toFloat()
+            )
+            couponDao.insertCoupon(coupon)
+            addInteractionXp(30L, isCoupon = true)
+
+            dispatchPacket(
+                TetherPacket(
+                    id = UUID.randomUUID().toString(),
+                    type = "COUPON_CREATE",
+                    senderId = "ME",
+                    content = "$couponId|$cleanTitle|$cleanDesc",
+                    caption = cleanTitle,
+                    lamportTimestamp = currentLamportClock.incrementAndGet()
+                )
+            )
+        }
+    }
+
+    fun generateAiPixelArt(context: Context, prompt: String) {
+        if (prompt.isBlank() || _isGeneratingAvatar.value) return
+        viewModelScope.launch {
+            _isGeneratingAvatar.value = true
+            try {
+                val filePath = withContext(Dispatchers.IO) {
+                    pixelAvatarGenerator.generatePixelAvatar(prompt.trim())
+                }
+                if (filePath != null) {
+                    val file = File(filePath)
+                    if (file.exists()) {
+                        sendPhotoMessage(
+                            context = context,
+                            uri = Uri.fromFile(file),
+                            caption = prompt.trim()
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Gagal generate pixel art: ${e.message}")
+            } finally {
+                _isGeneratingAvatar.value = false
             }
         }
     }

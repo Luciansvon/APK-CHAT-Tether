@@ -54,6 +54,7 @@ fun ScrapbookBottomBar(
     onSendClick: () -> Unit,
     onCameraClick: () -> Unit,
     onCouponClick: () -> Unit,
+    onAiPixelClick: () -> Unit = {},
     isRecordingAudio: Boolean = false,
     recordingDurationSeconds: Int = 0,
     onStartRecordAudio: () -> Unit = {},
@@ -173,12 +174,12 @@ fun ScrapbookBottomBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Tombol Kamera Pixel Kotak
-                Box(modifier = Modifier.size(40.dp)) {
+                Box(modifier = Modifier.size(38.dp)) {
                     Box(
                         modifier = Modifier
                             .matchParentSize()
@@ -196,14 +197,39 @@ fun ScrapbookBottomBar(
                         Icon(
                             painter = painterResource(id = R.drawable.ic_pixel_camera),
                             contentDescription = "Camera",
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(18.dp),
                             tint = PixelDarkInk
                         )
                     }
                 }
 
+                // Tombol AI Generate Gambar Pixel
+                Box(modifier = Modifier.size(38.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .offset(x = 2.dp, y = 2.dp)
+                            .background(PixelDarkInk)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.White)
+                            .border(2.dp, PixelDarkInk)
+                            .clickable { onAiPixelClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_pixel_sparkle),
+                            contentDescription = "AI Pixel",
+                            modifier = Modifier.size(18.dp),
+                            tint = PixelHeartRed
+                        )
+                    }
+                }
+
                 // Tombol Buku Kupon Pixel Kotak
-                Box(modifier = Modifier.size(40.dp)) {
+                Box(modifier = Modifier.size(38.dp)) {
                     Box(
                         modifier = Modifier
                             .matchParentSize()
@@ -221,7 +247,7 @@ fun ScrapbookBottomBar(
                         Icon(
                             painter = painterResource(id = R.drawable.ic_pixel_coupon),
                             contentDescription = "Coupons",
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(18.dp),
                             tint = PixelDarkInk
                         )
                     }
