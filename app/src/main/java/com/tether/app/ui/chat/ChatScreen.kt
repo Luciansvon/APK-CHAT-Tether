@@ -70,14 +70,16 @@ fun ChatScreen(
     val coupleLevel by viewModel.coupleLevel.collectAsState()
     val inputText by viewModel.inputText.collectAsState()
     val isP2pActive by viewModel.p2pManager.isP2pConnected.collectAsState()
+    val isFirebaseActive by viewModel.firebaseManager.isConnected.collectAsState()
     val isRelayActive by viewModel.relayManager.isRelayConnected.collectAsState()
 
     val connectionLabel = when {
         isP2pActive -> "P2P 0-Data"
+        isFirebaseActive -> "Firebase Cloud"
         isRelayActive -> "Online Cloud"
         else -> "Standby"
     }
-    val isConnected = isP2pActive || isRelayActive
+    val isConnected = isP2pActive || isFirebaseActive || isRelayActive
     val playingAudioId by viewModel.playingAudioId.collectAsState()
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showVaultSheet by remember { mutableStateOf(false) }

@@ -10,6 +10,8 @@ import com.tether.app.core.database.entity.CoupleLevelEntity
 import com.tether.app.core.database.entity.CouponEntity
 import com.tether.app.core.database.entity.MessageEntity
 import com.tether.app.core.database.entity.PartnerProfileEntity
+import com.tether.app.core.network.drive.DriveUploadManager
+import com.tether.app.core.network.firebase.FirebaseRealtimeManager
 import com.tether.app.core.network.model.TetherPacket
 import com.tether.app.core.network.p2p.TetherP2pManager
 import com.tether.app.core.network.relay.TetherRelayManager
@@ -21,6 +23,8 @@ import com.tether.app.core.sensor.ProximitySensorManager
 import com.tether.app.core.sound.SoundEffectManager
 import com.tether.app.domain.command.TetherCommand
 import com.tether.app.domain.command.TetherCommandParser
+import android.content.Context
+import android.net.Uri
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +55,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val relayManager = TetherRelayManager(
         sessionKeyProvider = { activeSessionKey }
     )
+    val firebaseManager = FirebaseRealtimeManager(
+        sessionKeyProvider = { activeSessionKey }
+    )
     val proximitySensor = ProximitySensorManager(application)
     val hapticEngine = HapticResonanceEngine(application)
     val soundManager = SoundEffectManager(application)
@@ -79,6 +86,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     init {
         p2pManager.startP2pEngine()
         relayManager.startRelayEngine()
+        firebaseManager.start()
 
         viewModelScope.launch {
             seedDefaultCouponsAndProfile()
@@ -97,6 +105,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // Tangkap paket Relay Internet yang masuk secara real-time
         viewModelScope.launch {
             relayManager.incomingPackets.collect { packet ->
+                handleIncomingPacket(packet)
+            }
+        }
+
+        // Tangkap paket Firebase Realtime Database yang masuk secara real-time
+        viewModelScope.launch {
+            firebaseManager.incomingPackets.collect { packet ->
                 handleIncomingPacket(packet)
             }
         }
@@ -305,6 +320,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val peerIp = p2pManager.connectedPeerIp.value
         return if (p2pManager.isP2pConnected.value && peerIp != null) {
             val ok = p2pManager.sendPacket(peerIp, packet)
+            messageDao.updateDeliveredStatus(packet.id, ok)
+            ok
+        } else if (firebaseManager.isConnected.value) {
+            val ok = firebaseManager.sendPacket(packet)
             messageDao.updateDeliveredStatus(packet.id, ok)
             ok
         } else if (relayManager.isRelayConnected.value) {
@@ -724,11 +743,45 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun uploadAndSendMedia(context: Context, uri: Uri, caption: String? = null, isFoggy: Boolean = true) {
+        viewModelScope.launch {
+            val uploadedUrl = DriveUploadManager.uploadFile(context, uri)
+            if (uploadedUrl != null) {
+                soundManager.playSendSound()
+                val clock = currentLamportClock.incrementAndGet()
+                val msg = MessageEntity(
+                    id = UUID.randomUUID().toString(),
+                    senderId = "ME",
+                    type = "POLAROID",
+                    content = uploadedUrl,
+                    caption = caption ?: "Momen kita",
+                    lamportTimestamp = clock,
+                    localTimestamp = System.currentTimeMillis(),
+                    isFoggy = isFoggy,
+                    rotation = (-5..5).random() / 10f
+                )
+                messageDao.insertMessage(msg)
+                addInteractionXp(25L, isMsg = true)
+                dispatchPacket(
+                    TetherPacket(
+                        id = msg.id,
+                        type = "POLAROID",
+                        senderId = "ME",
+                        content = uploadedUrl,
+                        caption = msg.caption,
+                        lamportTimestamp = msg.lamportTimestamp
+                    )
+                )
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         audioPlaybackJob?.cancel()
         p2pManager.stop()
         relayManager.stop()
+        firebaseManager.stop()
         proximitySensor.stopListening()
         soundManager.release()
     }
