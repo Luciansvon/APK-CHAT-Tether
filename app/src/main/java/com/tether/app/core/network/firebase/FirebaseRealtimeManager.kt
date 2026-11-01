@@ -208,7 +208,13 @@ class FirebaseRealtimeManager(
         val packet = TetherPacket.fromJson(unwrapped) ?: return
 
         if (seenMessageIds.size > 1000) {
-            seenMessageIds.clear()
+            val iterator = seenMessageIds.iterator()
+            var count = 0
+            while (iterator.hasNext() && count < 500) {
+                iterator.next()
+                iterator.remove()
+                count++
+            }
         }
         if (seenMessageIds.add(packet.id)) {
             scope.launch {

@@ -25,12 +25,22 @@ object KeystoreManager {
     private const val KEY_IV_IDENTITY_PRIV = "iv_identity_ec_priv"
     private const val KEY_ROOM_CODE = "room_code"
     private const val KEY_ROOM_PASSCODE = "room_passcode"
+    private const val KEY_ENC_ROOM_PASSCODE = "enc_room_passcode"
+    private const val KEY_IV_ROOM_PASSCODE = "iv_room_passcode"
 
     fun saveRoomConfig(context: Context, roomCode: String, passcode: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val secretKey = getOrCreateMasterSecretKey(context)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+        val iv = cipher.iv
+        val encPass = cipher.doFinal(passcode.trim().toByteArray(Charsets.UTF_8))
+
         prefs.edit()
             .putString(KEY_ROOM_CODE, roomCode.trim().lowercase())
-            .putString(KEY_ROOM_PASSCODE, passcode.trim())
+            .putString(KEY_ENC_ROOM_PASSCODE, Base64.encodeToString(encPass, Base64.NO_WRAP))
+            .putString(KEY_IV_ROOM_PASSCODE, Base64.encodeToString(iv, Base64.NO_WRAP))
+            .remove(KEY_ROOM_PASSCODE)
             .commit()
     }
 
@@ -41,7 +51,25 @@ object KeystoreManager {
 
     fun getRoomPasscode(context: Context): String? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_ROOM_PASSCODE, null)
+        val encPass = prefs.getString(KEY_ENC_ROOM_PASSCODE, null)
+        val ivString = prefs.getString(KEY_IV_ROOM_PASSCODE, null)
+        if (encPass != null && ivString != null) {
+            try {
+                val secretKey = getOrCreateMasterSecretKey(context)
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                val iv = Base64.decode(ivString, Base64.NO_WRAP)
+                cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(128, iv))
+                val decrypted = cipher.doFinal(Base64.decode(encPass, Base64.NO_WRAP))
+                return String(decrypted, Charsets.UTF_8)
+            } catch (_: Exception) {}
+        }
+        val legacy = prefs.getString(KEY_ROOM_PASSCODE, null)
+        if (!legacy.isNullOrBlank()) {
+            val code = prefs.getString(KEY_ROOM_CODE, null) ?: ""
+            saveRoomConfig(context, code, legacy)
+            return legacy
+        }
+        return null
     }
 
     fun isRoomConfigured(context: Context): Boolean {
@@ -53,6 +81,8 @@ object KeystoreManager {
         prefs.edit()
             .remove(KEY_ROOM_CODE)
             .remove(KEY_ROOM_PASSCODE)
+            .remove(KEY_ENC_ROOM_PASSCODE)
+            .remove(KEY_IV_ROOM_PASSCODE)
             .commit()
     }
 

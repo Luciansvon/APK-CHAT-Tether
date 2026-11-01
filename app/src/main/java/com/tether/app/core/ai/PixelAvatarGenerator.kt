@@ -17,16 +17,19 @@ import java.util.concurrent.TimeUnit
 
 class PixelAvatarGenerator(
     private val context: Context,
-    private val baseUrl: String = "http://10.0.2.2:20128/v1",
-    private val apiKey: String = "sk-85dff2b13794dd01-bk2or9-40cd5c20"
+    private val baseUrl: String = "",
+    private val apiKey: String = ""
 ) {
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
     suspend fun generatePixelAvatar(userPrompt: String): String? = withContext(Dispatchers.IO) {
+        if (baseUrl.isBlank() || apiKey.isBlank()) {
+            return@withContext generateFallbackPreset(userPrompt)
+        }
         val systemPrompt = """
             You are a 16-bit retro pixel art character generator for Tether cozy couple app.
             Generate a 16x16 pixel art face/bust avatar based on the user request.
@@ -77,32 +80,28 @@ class PixelAvatarGenerator(
             put("temperature", 0.7)
         }
 
-        // Coba koneksi ke 10.0.2.2 (Android Emulator standard loopback), fallback ke 192.168.0.129 jika di LAN
-        val candidateHosts = listOf("10.0.2.2", "192.168.0.129", "127.0.0.1")
-        for (host in candidateHosts) {
-            val url = "http://$host:20128/v1/chat/completions"
-            val request = Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer $apiKey")
-                .addHeader("Content-Type", "application/json")
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
+        val endpoint = if (baseUrl.endsWith("/chat/completions")) baseUrl else "${baseUrl.trimEnd('/')}/chat/completions"
+        val request = Request.Builder()
+            .url(endpoint)
+            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("Content-Type", "application/json")
+            .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+            .build()
 
-            try {
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@use
-
-                    val responseBody = response.body?.string() ?: return@use
-                    val parsedBmp = parseAndRenderPixelGrid(responseBody)
-                    if (parsedBmp != null) {
-                        return@withContext saveAvatarToFile(parsedBmp)
+        try {
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    if (responseBody != null) {
+                        val parsedBmp = parseAndRenderPixelGrid(responseBody)
+                        if (parsedBmp != null) {
+                            return@withContext saveAvatarToFile(parsedBmp)
+                        }
                     }
                 }
-            } catch (_: Exception) {
-                // Coba host berikutnya
             }
-        }
-        // Fallback offline: Buat avatar pixel retro cozy bawaan jika 9Router sedang offline
+        } catch (_: Exception) {}
+
         generateFallbackPreset(userPrompt)
     }
 

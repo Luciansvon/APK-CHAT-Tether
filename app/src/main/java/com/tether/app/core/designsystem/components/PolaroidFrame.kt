@@ -55,7 +55,6 @@ fun PolaroidFrame(
             .width(235.dp)
             .graphicsLayer { rotationZ = rotation }
             .pixelShadow(3.dp, 3.dp)
-            .fillMaxWidth()
             .background(PixelFrameCard)
             .border(2.dp, PixelDarkInk)
             .padding(8.dp)

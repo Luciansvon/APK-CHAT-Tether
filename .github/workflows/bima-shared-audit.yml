@@ -1,0 +1,21 @@
+name: B.I.M.A shared repository audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    permissions:
+      contents: read
+    uses: Luciansvon/B.I.M.A-DEV-INFRA/.github/workflows/repository-audit.yml@07ab3086e79a8daff13f225fd587d4cd5fea75ba # v1
+    with:
+      infra-ref: 07ab3086e79a8daff13f225fd587d4cd5fea75ba
+      policy-path: .bima/audit.json
+      artifact-name: tether-repository-audit

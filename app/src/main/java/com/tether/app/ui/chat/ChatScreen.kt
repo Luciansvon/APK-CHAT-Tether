@@ -54,7 +54,6 @@ import com.tether.app.core.designsystem.components.ScrapbookBottomBar
 import com.tether.app.core.designsystem.components.TetherStatusHeader
 import com.tether.app.core.designsystem.components.VoiceNoteBubble
 import com.tether.app.core.designsystem.components.WashiRibbon
-import com.tether.app.core.designsystem.components.WhisperCassetteCard
 import com.tether.app.core.designsystem.components.pixelGridBackground
 import com.tether.app.core.designsystem.components.pixelShadow
 import com.tether.app.core.designsystem.theme.PixelDarkInk
@@ -360,7 +359,7 @@ fun ChatScreen(
                                 .padding(vertical = 4.dp),
                             contentAlignment = Alignment.CenterStart
                         ) {
-                            WhisperCassetteCard(
+                            VoiceNoteBubble(
                                 duration = "0:14",
                                 isPlaying = playingAudioId == "default_sample",
                                 onPlayClick = { viewModel.toggleAudioPlayback("default_sample") }

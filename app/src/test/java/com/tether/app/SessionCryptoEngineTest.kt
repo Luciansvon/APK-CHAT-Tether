@@ -146,4 +146,28 @@ class SessionCryptoEngineTest {
         val decryptedByEve = SessionCryptoEngine.decryptPayload(encrypted, eveKey)
         assertNull(decryptedByEve)
     }
+
+    @Test
+    fun testUnwrapRejectsPlaintextWhenSessionKeyActive() {
+        val (alicePub, alicePriv) = SessionCryptoEngine.generateEphemeralKeyPair()
+        val (bobPub, _) = SessionCryptoEngine.generateEphemeralKeyPair()
+        val key = SessionCryptoEngine.deriveSharedAesKey(alicePriv, SessionCryptoEngine.encodeBase64(bobPub), alicePub)
+
+        val plaintextPacket = "{\"id\":\"fake1\",\"type\":\"TEXT\",\"content\":\"injected\"}"
+        // Saat sessionKey aktif, paket tanpa wrapper "enc" harus ditolak
+        val unwrapped = SessionCryptoEngine.unwrapWireEnvelope(plaintextPacket, key)
+        assertNull(unwrapped)
+
+        // Namun saat sessionKey null (misal mode pairing awal), paket diteruskan
+        val unconfigured = SessionCryptoEngine.unwrapWireEnvelope(plaintextPacket, null)
+        assertEquals(plaintextPacket, unconfigured)
+    }
+
+    @Test
+    fun testPbkdf2RoomKeyDerivation() {
+        val key1 = SessionCryptoEngine.deriveRoomAesKey("KITA-9999", "pass123")
+        val key2 = SessionCryptoEngine.deriveRoomAesKey("kita-9999", "pass123")
+        assertArrayEquals(key1.encoded, key2.encoded)
+        assertEquals(32, key1.encoded.size) // 256 bits
+    }
 }

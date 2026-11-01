@@ -13,8 +13,8 @@ android {
         applicationId = "com.tether.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.3.4"
+        versionCode = 13
+        versionName = "0.3.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -97,9 +97,6 @@ dependencies {
 
     // QR Code Generator
     implementation(libs.zxing.core)
-
-    // Media & Audio
-    implementation(libs.androidx.media3.exoplayer)
 
     // Testing
     testImplementation(libs.junit)

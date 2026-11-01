@@ -43,6 +43,10 @@ abstract class TetherDatabase : RoomDatabase() {
                     // clearPassphrase = true agar array byte passphrase langsung di-zero setelah koneksi dibuka
                     val factory = SupportOpenHelperFactory(passphrase, null, true)
 
+                    val migration1to2 = object : androidx.room.migration.Migration(1, 2) {
+                        override fun migrate(db: SupportSQLiteDatabase) {}
+                    }
+
                     val migration2to3 = object : androidx.room.migration.Migration(2, 3) {
                         override fun migrate(db: SupportSQLiteDatabase) {
                             db.execSQL(
@@ -62,13 +66,19 @@ abstract class TetherDatabase : RoomDatabase() {
                         }
                     }
 
+                    val migration1to3 = object : androidx.room.migration.Migration(1, 3) {
+                        override fun migrate(db: SupportSQLiteDatabase) {
+                            migration2to3.migrate(db)
+                        }
+                    }
+
                     val instance = Room.databaseBuilder(
                         context.applicationContext,
                         TetherDatabase::class.java,
                         "tether_enc.db"
                     )
                         .openHelperFactory(factory)
-                        .addMigrations(migration2to3)
+                        .addMigrations(migration1to2, migration2to3, migration1to3)
                         .addCallback(object : Callback() {
                             override fun onCreate(db: SupportSQLiteDatabase) {
                                 super.onCreate(db)

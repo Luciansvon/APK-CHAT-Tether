@@ -14,7 +14,9 @@ import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
 import javax.crypto.SecretKey
+import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 object SessionCryptoEngine {
@@ -99,12 +101,11 @@ object SessionCryptoEngine {
     }
 
     fun deriveRoomAesKey(roomCode: String, passcode: String): SecretKey {
-        val digest = MessageDigest.getInstance("SHA-256")
-        digest.update("TETHER_ROOM_E2EE_V1".toByteArray(Charsets.UTF_8))
-        digest.update(roomCode.trim().lowercase().toByteArray(Charsets.UTF_8))
-        digest.update(passcode.trim().toByteArray(Charsets.UTF_8))
-        val keyMaterial = digest.digest()
-        return SecretKeySpec(keyMaterial, "AES")
+        val salt = "TETHER_ROOM_SALT_".toByteArray(Charsets.UTF_8) + roomCode.trim().lowercase().toByteArray(Charsets.UTF_8)
+        val spec = PBEKeySpec(passcode.trim().toCharArray(), salt, 100_000, 256)
+        val keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val keyBytes = keyFactory.generateSecret(spec).encoded
+        return SecretKeySpec(keyBytes, "AES")
     }
 
     /**
@@ -122,6 +123,7 @@ object SessionCryptoEngine {
     /**
      * Membuka amplop E2EE dari jaringan P2P/Relay.
      * Mendukung amplop terenkripsi ("enc") maupun fallback paket plaintext saat belum memiliki shared key.
+     * Menolak paket unencrypted saat sessionKey sudah aktif (mencegah plaintext injection).
      */
     fun unwrapWireEnvelope(wireLine: String, sessionKey: SecretKey?): String? {
         return try {
@@ -129,8 +131,10 @@ object SessionCryptoEngine {
             if (obj.has("enc") && !obj.isNull("enc")) {
                 val key = sessionKey ?: return null
                 decryptPayload(obj.getString("enc"), key)
-            } else {
+            } else if (sessionKey == null) {
                 wireLine
+            } else {
+                null
             }
         } catch (_: Exception) {
             null

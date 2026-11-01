@@ -40,6 +40,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
@@ -142,8 +144,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         p2pManager.startP2pEngine()
-        relayManager.startRelayEngine()
-        firebaseManager.start()
+        val initialRoom = KeystoreManager.getRoomCode(application)
+        if (!initialRoom.isNullOrBlank()) {
+            val deviceId = KeystoreManager.getOrCreateDevicePartnerId(application)
+            relayManager.startRelayEngine("tether_room_${initialRoom.trim().lowercase()}", deviceId)
+            firebaseManager.start()
+        }
 
         viewModelScope.launch {
             seedDefaultCouponsAndProfile()
@@ -191,11 +197,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun flushPendingMessages() {
         val undelivered = messageDao.getUndeliveredMessages()
         for (msg in undelivered) {
+            val wireContent = when (msg.type) {
+                "POLAROID" -> {
+                    val file = File(msg.content)
+                    if (!file.exists()) continue
+                    val bytes = try { file.readBytes() } catch (_: Exception) { continue }
+                    val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    "data:image/jpeg;base64,$b64"
+                }
+                "WHISPER" -> {
+                    val file = File(msg.content)
+                    if (!file.exists()) continue
+                    val bytes = try { file.readBytes() } catch (_: Exception) { continue }
+                    val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    "data:audio/mp4;base64,$b64"
+                }
+                else -> msg.content
+            }
             val packet = TetherPacket(
                 id = msg.id,
                 type = msg.type,
                 senderId = msg.senderId,
-                content = msg.content,
+                content = wireContent,
                 caption = msg.caption,
                 duration = msg.duration,
                 lamportTimestamp = msg.lamportTimestamp
@@ -223,6 +246,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
             refreshSessionKey()
             _isRoomConfigured.value = true
+            val deviceId = KeystoreManager.getOrCreateDevicePartnerId(app)
+            relayManager.startRelayEngine("tether_room_${roomCode.trim().lowercase()}", deviceId)
             firebaseManager.start()
         }
     }
@@ -233,6 +258,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             refreshSessionKey()
             _isRoomConfigured.value = true
+            val deviceId = KeystoreManager.getOrCreateDevicePartnerId(app)
+            relayManager.startRelayEngine("tether_room_${roomCode.trim().lowercase()}", deviceId)
             firebaseManager.start()
         }
     }
@@ -242,6 +269,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         KeystoreManager.clearRoomConfig(app)
         activeSessionKey = null
         _isRoomConfigured.value = false
+        firebaseManager.stop()
+        relayManager.stop()
     }
 
     private suspend fun refreshSessionKey() {
@@ -341,29 +370,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val xpMutex = Mutex()
+
     private suspend fun addInteractionXp(xpDelta: Long, isMsg: Boolean = false, isTug: Boolean = false, isCoupon: Boolean = false) {
-        val current = coupleLevelDao.getLevel() ?: CoupleLevelEntity()
-        val newXp = current.currentXp + xpDelta
+        xpMutex.withLock {
+            val current = coupleLevelDao.getLevel() ?: CoupleLevelEntity()
+            val newXp = current.currentXp + xpDelta
 
-        var targetLevel = current.currentLevel
-        while (newXp >= CoupleLevelEntity.xpRequiredForLevel(targetLevel)) {
-            targetLevel++
-        }
+            var targetLevel = current.currentLevel
+            while (newXp >= CoupleLevelEntity.xpRequiredForLevel(targetLevel)) {
+                targetLevel++
+            }
 
-        val updated = current.copy(
-            currentXp = newXp,
-            currentLevel = targetLevel,
-            totalMessagesSent = current.totalMessagesSent + if (isMsg) 1 else 0,
-            totalTugsSent = current.totalTugsSent + if (isTug) 1 else 0,
-            totalCouponsClaimed = current.totalCouponsClaimed + if (isCoupon) 1 else 0,
-            lastInteractionTimestamp = System.currentTimeMillis()
-        )
-        coupleLevelDao.saveLevel(updated)
+            val updated = current.copy(
+                currentXp = newXp,
+                currentLevel = targetLevel,
+                totalMessagesSent = current.totalMessagesSent + if (isMsg) 1 else 0,
+                totalTugsSent = current.totalTugsSent + if (isTug) 1 else 0,
+                totalCouponsClaimed = current.totalCouponsClaimed + if (isCoupon) 1 else 0,
+                lastInteractionTimestamp = System.currentTimeMillis()
+            )
+            coupleLevelDao.saveLevel(updated)
 
-        if (targetLevel > current.currentLevel) {
-            hapticEngine.playTugHaptic()
-            soundManager.playSendSound()
-            _levelUpEvent.value = LevelUpInfo(targetLevel, updated.title())
+            if (targetLevel > current.currentLevel) {
+                hapticEngine.playTugHaptic()
+                soundManager.playSendSound()
+                _levelUpEvent.value = LevelUpInfo(targetLevel, updated.title())
+            }
         }
     }
 
@@ -659,10 +692,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val polaroidDir = File(context.filesDir, "polaroids").apply { mkdirs() }
                 val localFile = File(polaroidDir, "polaroid_${UUID.randomUUID()}.jpg")
 
-                val stream = context.contentResolver.openInputStream(uri) ?: return@launch
-                val originalBmp = BitmapFactory.decodeStream(stream)
-                stream.close()
-                if (originalBmp == null) return@launch
+                val originalBmp = context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)
+                } ?: return@launch
 
                 val maxDim = 800
                 val longest = maxOf(originalBmp.width, originalBmp.height)
@@ -938,8 +970,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val mp = MediaPlayer().apply {
                     setDataSource(audioFile.absolutePath)
-                    prepare()
-                    start()
+                    setOnPreparedListener { it.start() }
                     setOnCompletionListener {
                         _playingAudioId.value = null
                         proximitySensor.stopListening()
@@ -953,6 +984,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         mediaPlayer = null
                         true
                     }
+                    prepareAsync()
                 }
                 mediaPlayer = mp
             } catch (e: Exception) {
@@ -1172,12 +1204,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 hapticEngine.playHeartbeatResonance()
                 addInteractionXp(30L, isCoupon = true)
                 try {
-                    val parts = packet.content.split("|")
-                    if (parts.size >= 3) {
+                    val (couponId, title, desc) = if (packet.content.startsWith("{")) {
+                        val json = org.json.JSONObject(packet.content)
+                        Triple(json.optString("id"), json.optString("title"), json.optString("desc"))
+                    } else {
+                        val parts = packet.content.split("|")
+                        Triple(parts.getOrElse(0) { "" }, parts.getOrElse(1) { "" }, parts.getOrElse(2) { "" })
+                    }
+                    if (couponId.isNotBlank() && title.isNotBlank()) {
                         val coupon = CouponEntity(
-                            id = parts[0],
-                            title = parts[1],
-                            description = parts[2],
+                            id = couponId,
+                            title = title,
+                            description = desc,
                             isClaimed = false,
                             claimedAt = null,
                             rotation = (-3..3).random().toFloat()
@@ -1274,12 +1312,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             couponDao.insertCoupon(coupon)
             addInteractionXp(30L, isCoupon = true)
 
+            val payload = org.json.JSONObject().apply {
+                put("id", couponId)
+                put("title", cleanTitle)
+                put("desc", cleanDesc)
+            }.toString()
+
             dispatchPacket(
                 TetherPacket(
                     id = UUID.randomUUID().toString(),
                     type = "COUPON_CREATE",
                     senderId = "ME",
-                    content = "$couponId|$cleanTitle|$cleanDesc",
+                    content = payload,
                     caption = cleanTitle,
                     lamportTimestamp = currentLamportClock.incrementAndGet()
                 )

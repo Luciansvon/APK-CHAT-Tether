@@ -46,6 +46,8 @@ class TetherRelayManager(
 
     fun startRelayEngine(pairId: String = "tether_couple_primary", clientId: String = "client_${System.currentTimeMillis()}") {
         shouldReconnect = true
+        scope.cancel()
+        scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         connect(pairId, clientId)
     }
 
